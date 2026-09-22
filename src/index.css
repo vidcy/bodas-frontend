@@ -393,9 +393,13 @@ body {
   transform: scale(1.01);
 }
 
-/* ── HERO TEXT SHADOW ────────────────────────────────────── */
+/* ── HERO TEXT SHADOW & LUMINOUS GLOW ────────────────────── */
 .text-hero-shadow {
-  text-shadow: 0 6px 30px rgba(70, 15, 50, 0.55);
+  text-shadow: 0 4px 20px rgba(120, 40, 80, 0.4), 0 10px 40px rgba(217, 119, 6, 0.25);
+}
+
+.text-light-shadow {
+  text-shadow: 0 2px 10px rgba(255, 255, 255, 0.8), 0 4px 24px rgba(217, 119, 6, 0.2);
 }
 
 /* ── BADGES & SHIMMER ────────────────────────────────────── */
@@ -404,3 +408,31 @@ body {
   background-size: 200% 100%;
   animation: shimmerEffect 3s infinite linear;
 }
+
+/* ── LUMINOUS WEDDING CARDS & GLOW ────────────────────────── */
+.luminous-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 248, 252, 0.88) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(244, 215, 227, 0.8);
+  box-shadow: 0 12px 35px rgba(217, 127, 168, 0.12), 0 2px 10px rgba(201, 169, 110, 0.08);
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.luminous-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 45px rgba(217, 127, 168, 0.2), 0 6px 20px rgba(201, 169, 110, 0.15);
+  border-color: rgba(217, 127, 168, 0.6);
+}
+
+.gold-halo {
+  box-shadow: 0 0 50px rgba(245, 158, 11, 0.35), 0 0 100px rgba(236, 72, 153, 0.2);
+}
+
+.ambient-light-bg {
+  background:
+    radial-gradient(circle at 80% 20%, rgba(251, 191, 36, 0.2) 0%, transparent 45%),
+    radial-gradient(circle at 15% 75%, rgba(236, 72, 153, 0.18) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.15) 0%, transparent 55%),
+    linear-gradient(180deg, #fffcf9 0%, #fdf4f8 50%, #f7effe 100%);
+}
+

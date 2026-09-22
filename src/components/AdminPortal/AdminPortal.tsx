@@ -5,6 +5,16 @@ import type {
   VideoItem,
   RsvpGuest
 } from '../../types/wedding'
+import { optimizeImage, getBase64SizeKb } from '../../utils/imageOptimizer'
+import {
+  exportToJson,
+  importFromJson,
+  downloadConfigFile,
+  getCloudConfig,
+  saveCloudConfig,
+  uploadPhotoToBackend,
+  type CloudConfig
+} from '../../utils/storageService'
 
 interface AdminPortalProps {
   open: boolean
@@ -36,9 +46,11 @@ export function AdminPortal({
   // Working copy of data
   const [localData, setLocalData] = useState<WeddingData>(data)
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'comunicados' | 'banners' | 'stories' | 'videos' | 'galeria' | 'foro' | 'rsvp' | 'general'
+    'dashboard' | 'comunicados' | 'banners' | 'stories' | 'videos' | 'galeria' | 'foro' | 'rsvp' | 'general' | 'respaldos'
   >('dashboard')
   const [saveToast, setSaveToast] = useState(false)
+  const [isOptimizing, setIsOptimizing] = useState(false)
+  const [optimizingMsg, setOptimizingMsg] = useState('')
 
   // File upload refs
   const bannerFileRef = useRef<HTMLInputElement>(null)
@@ -46,6 +58,11 @@ export function AdminPortal({
   const galleryFileRef = useRef<HTMLInputElement>(null)
   const storyFileRef = useRef<HTMLInputElement>(null)
   const qrFileRef = useRef<HTMLInputElement>(null)
+  const backupFileRef = useRef<HTMLInputElement>(null)
+
+  // Cloud Sync state
+  const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => getCloudConfig())
+  const [cloudMsg, setCloudMsg] = useState('')
 
   // Story creator state
   const [newStoryTitle, setNewStoryTitle] = useState('')
@@ -94,19 +111,45 @@ export function AdminPortal({
     setTimeout(() => setSaveToast(false), 3000)
   }
 
-  // Upload helpers
-  const handleFileUpload = (
+  // Upload helper con soporte para Backend NestJS y compresión inteligente WebP
+  const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    callback: (base64Url: string) => void
+    callback: (url: string) => void
   ) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      const url = ev.target?.result as string
-      if (url) callback(url)
+
+    try {
+      setIsOptimizing(true)
+      setOptimizingMsg(`Procesando "${file.name}"...`)
+
+      // 1. Intentar subir como archivo real al Backend NestJS si está activo
+      const uploadedUrl = await uploadPhotoToBackend(file)
+      if (uploadedUrl) {
+        callback(uploadedUrl)
+        setOptimizingMsg(`✅ Foto guardada en el servidor NestJS`)
+        setTimeout(() => setOptimizingMsg(''), 2500)
+        return
+      }
+
+      // 2. Fallback a compresión WebP en cliente (IndexedDB)
+      setOptimizingMsg(`Optimizando a WebP de alta resolución...`)
+      const optimizedUrl = await optimizeImage(file, {
+        maxWidth: 1920,
+        maxHeight: 1920,
+        quality: 0.82
+      })
+      const sizeKb = getBase64SizeKb(optimizedUrl)
+      callback(optimizedUrl)
+      setOptimizingMsg(`✅ Imagen optimizada con éxito (~${sizeKb} KB)`)
+      setTimeout(() => setOptimizingMsg(''), 2500)
+    } catch (err) {
+      console.error('Error optimizando foto:', err)
+      alert('Hubo un error al procesar la imagen. Intenta con otra foto.')
+    } finally {
+      setIsOptimizing(false)
+      e.target.value = ''
     }
-    reader.readAsDataURL(file)
   }
 
   // Add new story
@@ -301,9 +344,20 @@ export function AdminPortal({
             </div>
 
             <div className="flex items-center gap-2">
+              {isOptimizing && (
+                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full border border-amber-200 animate-pulse flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-spin" />
+                  Optimizando imagen...
+                </span>
+              )}
+              {optimizingMsg && !isOptimizing && (
+                <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-200">
+                  {optimizingMsg}
+                </span>
+              )}
               {saveToast && (
                 <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 animate-bounce">
-                  ✅ Cambios guardados
+                  ✅ Cambios guardados en IndexedDB
                 </span>
               )}
               <button
@@ -341,6 +395,7 @@ export function AdminPortal({
                 { id: 'foro', label: 'Moderación de Foro', icon: '💬' },
                 { id: 'rsvp', label: 'Invitados & Asistencia', icon: '👥' },
                 { id: 'general', label: 'Configuración General', icon: '⚙️' },
+                { id: 'respaldos', label: 'Nube & Respaldos PRO', icon: '☁️' },
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -817,13 +872,188 @@ export function AdminPortal({
               {/* GESTOR DE VIDEOS TAB */}
               {activeTab === 'videos' && (
                 <div className="space-y-6">
-                  {/* AGREGAR VIDEO */}
+                  {/* LOS 2 VIDEOS ESTELARES */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100 space-y-6">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">🎬</span>
+                        <h4 className="font-display text-xl font-bold text-stone-800">
+                          Los 2 Videos Estelares de la Boda
+                        </h4>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-1">
+                        Configura el video de publicidad/invitación y el video documental de su historia de amor
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* VIDEO 1: PUBLICIDAD */}
+                      <div className="p-5 rounded-3xl bg-amber-50/50 border border-amber-200/70 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-amber-500 text-white font-extrabold text-xs flex items-center justify-center shadow-sm">
+                            1
+                          </span>
+                          <div>
+                            <h5 className="font-bold text-sm text-amber-950">
+                              Video 1: Publicidad & Anuncio de Boda
+                            </h5>
+                            <span className="text-[0.65rem] text-amber-800/80">
+                              Tráiler promocional o invitación oficial
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Título del Video
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[0]?.title || ''}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (!copy[0]) {
+                                copy[0] = { id: 'v-promo', title: '', url: '', platform: 'youtube', category: 'Publicidad & Anuncio Oficial' }
+                              }
+                              copy[0] = { ...copy[0], title: e.target.value }
+                              setLocalData({ ...localData, videos: copy })
+                            }}
+                            placeholder="Ej: ✨ Gran Tráiler: Anuncio Oficial de Nuestra Boda"
+                            className="field-input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Enlace de YouTube / Vimeo / MP4
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[0]?.url || ''}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (!copy[0]) {
+                                copy[0] = { id: 'v-promo', title: 'Tráiler Oficial', url: '', platform: 'youtube', category: 'Publicidad & Anuncio Oficial' }
+                              }
+                              copy[0] = { ...copy[0], url: e.target.value }
+                              setLocalData({ ...localData, videos: copy, youtubeVideoId: e.target.value })
+                            }}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            className="field-input text-xs font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Categoría / Etiqueta
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[0]?.category || 'Publicidad & Anuncio Oficial'}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (copy[0]) {
+                                copy[0] = { ...copy[0], category: e.target.value }
+                                setLocalData({ ...localData, videos: copy })
+                              }
+                            }}
+                            className="field-input text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      {/* VIDEO 2: HISTORIA DE AMOR */}
+                      <div className="p-5 rounded-3xl bg-pink-50/50 border border-pink-200/70 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-pink-500 text-white font-extrabold text-xs flex items-center justify-center shadow-sm">
+                            2
+                          </span>
+                          <div>
+                            <h5 className="font-bold text-sm text-pink-950">
+                              Video 2: Historia de Amor
+                            </h5>
+                            <span className="text-[0.65rem] text-pink-800/80">
+                              Momentos románticos y documental
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Título del Video
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[1]?.title || ''}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (!copy[1]) {
+                                copy[1] = { id: 'v-love', title: '', url: '', platform: 'youtube', category: 'Historia de Amor & Documental' }
+                              }
+                              copy[1] = { ...copy[1], title: e.target.value }
+                              setLocalData({ ...localData, videos: copy })
+                            }}
+                            placeholder="Ej: 💕 Nuestra Hermosa Historia de Amor"
+                            className="field-input text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Enlace de YouTube / Vimeo / MP4
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[1]?.url || ''}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (!copy[1]) {
+                                copy[1] = { id: 'v-love', title: 'Historia de Amor', url: '', platform: 'youtube', category: 'Historia de Amor & Documental' }
+                              }
+                              copy[1] = { ...copy[1], url: e.target.value }
+                              setLocalData({ ...localData, videos: copy })
+                            }}
+                            placeholder="https://www.youtube.com/watch?v=..."
+                            className="field-input text-xs font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.68rem] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Categoría / Etiqueta
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.videos[1]?.category || 'Historia de Amor & Documental'}
+                            onChange={e => {
+                              const copy = [...localData.videos]
+                              if (copy[1]) {
+                                copy[1] = { ...copy[1], category: e.target.value }
+                                setLocalData({ ...localData, videos: copy })
+                              }
+                            }}
+                            className="field-input text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSave()}
+                      className="btn-gold text-xs py-3 px-6 shadow-md"
+                    >
+                      💾 Guardar Cambios de Videos Estelares
+                    </button>
+                  </div>
+
+                  {/* AGREGAR VIDEO ADICIONAL */}
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100">
-                    <h4 className="font-display text-xl font-bold text-stone-800 mb-2">
-                      Agregar Video a la Sala de Cine
+                    <h4 className="font-display text-lg font-bold text-stone-800 mb-2">
+                      + Agregar Otro Video Extra a la Playlist
                     </h4>
                     <p className="text-xs text-stone-500 mb-4">
-                      Pega cualquier link de YouTube (ej. https://youtube.com/watch?v=...), Vimeo o MP4
+                      Opcional: puedes añadir más videos de la pedida, fiesta o sesión de fotos
                     </p>
 
                     <form onSubmit={handleAddVideo} className="space-y-4">
@@ -851,66 +1081,72 @@ export function AdminPortal({
                             onChange={e => setNewVideoCat(e.target.value)}
                             className="field-input bg-white cursor-pointer"
                           >
-                            <option value="Tráiler Principal">Tráiler Principal</option>
-                            <option value="Historia">Historia de Amor</option>
+                            <option value="Momentos">Momentos Especiales</option>
                             <option value="Pre-Boda">Sesión Pre-Boda</option>
                             <option value="Propuesta">La Propuesta</option>
                             <option value="Mensaje">Mensaje de los Novios</option>
+                            <option value="Fiesta">Celebración</option>
                           </select>
                         </div>
                       </div>
 
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
-                          Enlace o ID de YouTube / Vimeo
+                          Enlace o ID de YouTube / Vimeo / MP4
                         </label>
                         <input
                           type="text"
                           required
-                          placeholder="https://www.youtube.com/watch?v=2Vv-BfVoq4g"
+                          placeholder="https://www.youtube.com/watch?v=..."
                           value={newVideoUrl}
                           onChange={e => setNewVideoUrl(e.target.value)}
-                          className="field-input"
+                          className="field-input font-mono text-xs"
                         />
                       </div>
 
-                      <button type="submit" className="btn-gold text-xs py-3 px-6">
-                        + Agregar Video a la Playlist
+                      <button type="submit" className="px-5 py-2.5 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs cursor-pointer shadow-sm">
+                        + Añadir Video Extra
                       </button>
                     </form>
                   </div>
 
-                  {/* LISTA DE VIDEOS */}
+                  {/* LISTA COMPLETA DE VIDEOS */}
                   <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100">
                     <h4 className="font-display text-lg font-bold text-stone-800 mb-4">
-                      Videos en la Galería ({localData.videos.length})
+                      Todos los Videos Configurados ({localData.videos.length})
                     </h4>
                     <div className="space-y-3">
                       {localData.videos.map((vid, i) => (
                         <div
                           key={vid.id || i}
-                          className="flex items-center justify-between p-4 rounded-2xl border border-stone-200 bg-stone-50"
+                          className="flex items-center justify-between p-4 rounded-2xl border border-stone-200 bg-stone-50 flex-wrap gap-3"
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <span className="text-2xl">🎬</span>
-                            <div>
-                              <h5 className="font-bold text-sm text-stone-800">{vid.title}</h5>
-                              <p className="text-xs text-stone-500 truncate max-w-md">{vid.url}</p>
+                            <div className="min-w-0">
+                              <span className="text-[0.65rem] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase">
+                                {vid.category || (i === 0 ? 'Publicidad' : i === 1 ? 'Historia' : 'Extra')}
+                              </span>
+                              <h5 className="font-bold text-sm text-stone-800 truncate mt-1">{vid.title}</h5>
+                              <p className="text-xs text-stone-500 truncate max-w-md font-mono">{vid.url}</p>
                             </div>
                           </div>
-                          <button
-                            onClick={() => {
-                              const updated = {
-                                ...localData,
-                                videos: localData.videos.filter((_, idx) => idx !== i),
-                              }
-                              setLocalData(updated)
-                              handleSave(updated)
-                            }}
-                            className="px-3 py-1 rounded-full text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200"
-                          >
-                            Eliminar
-                          </button>
+                          {i > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const updated = {
+                                  ...localData,
+                                  videos: localData.videos.filter((_, idx) => idx !== i),
+                                }
+                                setLocalData(updated)
+                                handleSave(updated)
+                              }}
+                              className="px-3 py-1 rounded-full text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 cursor-pointer"
+                            >
+                              Eliminar Extra
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1510,6 +1746,76 @@ export function AdminPortal({
                           className="field-input"
                         />
                       </div>
+
+                      {/* ENLACES DE MAPAS INTERACTIVOS */}
+                      <div className="md:col-span-2 pt-2 border-t border-amber-200/50 space-y-3">
+                        <span className="text-[0.68rem] font-bold text-amber-900 uppercase tracking-wider block">
+                          🗺️ Enlaces de Navegación GPS (Google Maps & Waze)
+                        </span>
+
+                        <div>
+                          <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                            Link Google Maps: Iglesia / Parroquia Señor de Qoyllority
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={localData.googleMapsUrl}
+                              onChange={e => setLocalData({ ...localData, googleMapsUrl: e.target.value })}
+                              placeholder="https://maps.app.goo.gl/..."
+                              className="field-input text-xs font-mono flex-1"
+                            />
+                            {localData.googleMapsUrl && (
+                              <a
+                                href={localData.googleMapsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 flex items-center gap-1"
+                              >
+                                Probar ↗
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                            Link Google Maps: Local &lsquo;El Golazo&rsquo; (Recepción)
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={localData.googleMapsReceptionUrl}
+                              onChange={e => setLocalData({ ...localData, googleMapsReceptionUrl: e.target.value })}
+                              placeholder="https://maps.app.goo.gl/..."
+                              className="field-input text-xs font-mono flex-1"
+                            />
+                            {localData.googleMapsReceptionUrl && (
+                              <a
+                                href={localData.googleMapsReceptionUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold border border-purple-200 flex items-center gap-1"
+                              >
+                                Probar ↗
+                              </a>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                            Link Waze (Opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={localData.wazeUrl || ''}
+                            onChange={e => setLocalData({ ...localData, wazeUrl: e.target.value })}
+                            placeholder="https://waze.com/ul?..."
+                            className="field-input text-xs font-mono"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1565,6 +1871,101 @@ export function AdminPortal({
                     </div>
                   </div>
 
+                  {/* MÚSICA OFICIAL DE LA BODA */}
+                  <div className="p-5 rounded-2xl bg-purple-50/50 border border-purple-200 space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">🎵</span>
+                        <div>
+                          <h5 className="font-bold text-xs uppercase tracking-wider text-purple-900">
+                            Música de Fondo Oficial de la Boda
+                          </h5>
+                          <span className="text-[0.65rem] text-purple-700">
+                            La canción que sonará automáticamente para todos los invitados al entrar a la web
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[0.68rem] font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded-full border border-purple-200">
+                        Canción activa: {localData.musicTitle}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                          Título de la Canción
+                        </label>
+                        <input
+                          type="text"
+                          value={localData.musicTitle}
+                          onChange={e => setLocalData({ ...localData, musicTitle: e.target.value })}
+                          placeholder="A Thousand Years"
+                          className="field-input text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                          Artista / Intérprete
+                        </label>
+                        <input
+                          type="text"
+                          value={localData.musicArtist}
+                          onChange={e => setLocalData({ ...localData, musicArtist: e.target.value })}
+                          placeholder="Christina Perri"
+                          className="field-input text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[0.65rem] font-bold text-stone-600 mb-0.5">
+                        URL del Archivo de Audio (MP3)
+                      </label>
+                      <input
+                        type="text"
+                        value={localData.musicUrl}
+                        onChange={e => setLocalData({ ...localData, musicUrl: e.target.value })}
+                        placeholder="/music/a-thousand-years.mp3 o enlace https://..."
+                        className="field-input text-xs font-mono"
+                      />
+                    </div>
+
+                    {/* PRESETS DE CANCIONES ROMÁNTICAS */}
+                    <div>
+                      <span className="text-[0.65rem] font-bold text-stone-500 uppercase tracking-wider block mb-1.5">
+                        Canciones Nupciales Recomendadas (1 Clic):
+                      </span>
+                      <div className="flex gap-2 flex-wrap">
+                        {[
+                          { title: 'A Thousand Years', artist: 'Christina Perri', url: '/music/a-thousand-years.mp3' },
+                          { title: 'Hasta Mi Final', artist: 'Il Divo', url: 'https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=romantic-wedding-114420.mp3' },
+                          { title: 'Canon in D (Orquesta Nupcial)', artist: 'Pachelbel', url: 'https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=canon-in-d-major-romantic-wedding-piano-and-strings-10022.mp3' },
+                          { title: 'Amor Eterno Nupcial', artist: 'Sinfonía Romántica', url: 'https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8b093de3f.mp3?filename=wedding-piano-10702.mp3' },
+                        ].map((song) => (
+                          <button
+                            key={song.title}
+                            type="button"
+                            onClick={() => {
+                              setLocalData({
+                                ...localData,
+                                musicTitle: song.title,
+                                musicArtist: song.artist,
+                                musicUrl: song.url,
+                              })
+                            }}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                              localData.musicUrl === song.url
+                                ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                : 'bg-white hover:bg-purple-50 text-stone-700 border-stone-200'
+                            }`}
+                          >
+                            🎵 {song.title} · <span className="opacity-75">{song.artist}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => handleSave()}
@@ -1572,6 +1973,231 @@ export function AdminPortal({
                   >
                     💾 Guardar Permanentemente Toda la Configuración
                   </button>
+                </div>
+              )}
+
+              {/* NUBE & RESPALDOS PRO TAB */}
+              {activeTab === 'respaldos' && (
+                <div className="space-y-6">
+                  {/* ESTADO DEL ALMACENAMIENTO PRO */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100">
+                    <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                      <div>
+                        <h4 className="font-display text-xl font-bold text-stone-800">
+                          🛡️ Motor de Persistencia & Almacenamiento PRO
+                        </h4>
+                        <p className="text-xs text-stone-500">
+                          Tus fotos y datos se guardan con tecnología IndexedDB (sin límite de 5 MB) y optimización WebP
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                        IndexedDB Activo
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                      <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                        <span className="text-[0.68rem] text-stone-500 uppercase font-bold block">Fotos de Pareja & Banner</span>
+                        <p className="text-xl font-bold text-stone-800 mt-1">
+                          {(localData.heroBannerUrl ? 1 : 0) + (localData.mainCouplePhoto ? 1 : 0)}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                        <span className="text-[0.68rem] text-stone-500 uppercase font-bold block">Historias (Stories)</span>
+                        <p className="text-xl font-bold text-purple-700 mt-1">{localData.stories.length}</p>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                        <span className="text-[0.68rem] text-stone-500 uppercase font-bold block">Fotos en Galería</span>
+                        <p className="text-xl font-bold text-rose-600 mt-1">{localData.galleryPhotos.length}</p>
+                      </div>
+                      <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200">
+                        <span className="text-[0.68rem] text-stone-500 uppercase font-bold block">Invitados Registrados</span>
+                        <p className="text-xl font-bold text-amber-600 mt-1">{localData.rsvpList.length}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COPIAS DE SEGURIDAD (EXPORTAR E IMPORTAR) */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100 space-y-4">
+                    <h4 className="font-display text-lg font-bold text-stone-800">
+                      📦 Copias de Seguridad (Backups de 1 Clic)
+                    </h4>
+                    <p className="text-xs text-stone-600 leading-relaxed">
+                      Descarga toda la boda (con fotos, historias, cronograma y confirmaciones) a un archivo en tu computadora. Puedes restaurarlo en cualquier momento o en otro dispositivo.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                      {/* BOTÓN EXPORTAR JSON */}
+                      <button
+                        type="button"
+                        onClick={() => exportToJson(localData)}
+                        className="flex flex-col items-center justify-center p-4 rounded-2xl bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-900 transition-all cursor-pointer group"
+                      >
+                        <span className="text-3xl mb-1 group-hover:scale-110 transition-transform">📥</span>
+                        <span className="text-xs font-bold text-center">Descargar Backup (.json)</span>
+                        <span className="text-[0.65rem] text-purple-700/80 mt-0.5 text-center">Guarda todo en un archivo local</span>
+                      </button>
+
+                      {/* BOTÓN RESTAURAR JSON */}
+                      <div
+                        onClick={() => backupFileRef.current?.click()}
+                        className="flex flex-col items-center justify-center p-4 rounded-2xl bg-pink-50 hover:bg-pink-100 border border-pink-200 text-pink-900 transition-all cursor-pointer group"
+                      >
+                        <span className="text-3xl mb-1 group-hover:scale-110 transition-transform">📤</span>
+                        <span className="text-xs font-bold text-center">Restaurar Backup (.json)</span>
+                        <span className="text-[0.65rem] text-pink-700/80 mt-0.5 text-center">Cargar archivo de respaldo</span>
+                      </div>
+                      <input
+                        ref={backupFileRef}
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          try {
+                            const imported = await importFromJson(file)
+                            setLocalData(imported)
+                            handleSave(imported)
+                            alert(`✅ ¡Copia de seguridad restaurada con éxito para la boda de ${imported.groomName} y ${imported.brideName}!`)
+                          } catch (err) {
+                            alert('El archivo seleccionado no es un respaldo válido de la boda.')
+                          } finally {
+                            e.target.value = ''
+                          }
+                        }}
+                      />
+
+                      {/* BOTÓN EXPORTAR CÓDIGO TS */}
+                      <button
+                        type="button"
+                        onClick={() => downloadConfigFile(localData)}
+                        className="flex flex-col items-center justify-center p-4 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 transition-all cursor-pointer group sm:col-span-2 lg:col-span-1"
+                      >
+                        <span className="text-3xl mb-1 group-hover:scale-110 transition-transform">👑</span>
+                        <span className="text-xs font-bold text-center">Descargar wedding-config.ts</span>
+                        <span className="text-[0.65rem] text-amber-800/80 mt-0.5 text-center">Para fijarlo en el código fuente</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SINCRONIZACIÓN EN LA NUBE PARA INVITADOS */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-display text-lg font-bold text-stone-800">
+                          ☁️ Sincronización Remota en la Nube (Para Invitados)
+                        </h4>
+                        <p className="text-xs text-stone-500">
+                          Conecta un servicio de nube o API para que los cambios se transmitan a los celulares de los invitados
+                        </p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cloudConfig.enabled}
+                          onChange={(e) => {
+                            const updated = { ...cloudConfig, enabled: e.target.checked }
+                            setCloudConfig(updated)
+                            saveCloudConfig(updated)
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+
+                    {cloudConfig.enabled ? (
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            URL del Endpoint de Nube (API o Supabase)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="https://tu-proyecto.supabase.co/rest/v1/wedding_data"
+                            value={cloudConfig.endpointUrl}
+                            onChange={(e) => setCloudConfig({ ...cloudConfig, endpointUrl: e.target.value })}
+                            className="field-input"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">
+                            Clave de API / Anon Key (Opcional)
+                          </label>
+                          <input
+                            type="password"
+                            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                            value={cloudConfig.apiKey || ''}
+                            onChange={(e) => setCloudConfig({ ...cloudConfig, apiKey: e.target.value })}
+                            className="field-input"
+                          />
+                        </div>
+
+                        {cloudMsg && (
+                          <p className="text-xs font-bold text-purple-700 bg-purple-50 p-2.5 rounded-xl border border-purple-200">
+                            {cloudMsg}
+                          </p>
+                        )}
+
+                        <div className="flex gap-2 flex-wrap pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              saveCloudConfig(cloudConfig)
+                              setCloudMsg('✅ Configuración de la nube guardada exitosamente.')
+                              setTimeout(() => setCloudMsg(''), 3000)
+                            }}
+                            className="px-4 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold hover:bg-purple-700 cursor-pointer shadow-sm"
+                          >
+                            Guardar Ajustes de Nube
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!cloudConfig.endpointUrl) {
+                                alert('Por favor ingresa primero la URL del endpoint.')
+                                return
+                              }
+                              setCloudMsg('⏳ Conectando y enviando datos a la nube...')
+                              try {
+                                const res = await fetch(cloudConfig.endpointUrl, {
+                                  method: 'POST',
+                                  headers: {
+                                    'Content-Type': 'application/json',
+                                    ...(cloudConfig.apiKey ? { 'apikey': cloudConfig.apiKey, 'Authorization': `Bearer ${cloudConfig.apiKey}` } : {})
+                                  },
+                                  body: JSON.stringify(localData)
+                                })
+                                if (res.ok) {
+                                  setCloudMsg('✅ ¡Sincronizado a la nube con éxito! Los invitados verán los datos actualizados.')
+                                } else {
+                                  setCloudMsg(`⚠️ El servidor respondió con estado: ${res.status}`)
+                                }
+                              } catch (err: any) {
+                                setCloudMsg(`❌ Error de conexión: ${err.message || 'No se pudo conectar'}`)
+                              }
+                            }}
+                            className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 cursor-pointer"
+                          >
+                            ☁️ Sincronizar Ahora a la Nube
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 text-xs text-stone-600 space-y-1">
+                        <p className="font-semibold text-stone-800">
+                          💡 ¿Cómo funciona sin backend?
+                        </p>
+                        <p>
+                          Si tienes tu boda desplegada en un frontend estático (como Vercel o Netlify), puedes hacer todos tus cambios y luego hacer clic en <strong>&ldquo;Descargar wedding-config.ts&rdquo;</strong>. Reemplazas ese archivo en tu proyecto y listo: tu boda queda fija para todos los invitados sin tener que pagar un servidor.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

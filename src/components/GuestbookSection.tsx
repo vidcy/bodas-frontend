@@ -140,8 +140,8 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                       type="button"
                       onClick={() => setSelectedEmoji(emoji)}
                       className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-all cursor-pointer ${selectedEmoji === emoji
-                          ? 'bg-pink-100 border-2 border-pink-400 scale-110 shadow-sm'
-                          : 'bg-stone-50 hover:bg-pink-50 border border-stone-200'
+                        ? 'bg-pink-100 border-2 border-pink-400 scale-110 shadow-sm'
+                        : 'bg-stone-50 hover:bg-pink-50 border border-stone-200'
                         }`}
                     >
                       {emoji}
@@ -163,10 +163,10 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                   rows={4}
                   value={message}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder="Escribe tus bendiciones, anécdotas o felicitaciones para Wilber y Victoria..."
+                  placeholder="Escribe tus bendiciones, anécdotas o felicitaciones para Luis y Victoria..."
                   className={`field-input leading-relaxed ${messageProfanity.hasProfanity
-                      ? 'border-red-400 bg-red-50/50 shadow-inner'
-                      : ''
+                    ? 'border-red-400 bg-red-50/50 shadow-inner'
+                    : ''
                     }`}
                   maxLength={350}
                 />
@@ -198,8 +198,8 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                 type="submit"
                 disabled={hasProfanity || !author.trim() || !message.trim()}
                 className={`w-full py-3.5 rounded-full font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${hasProfanity
-                    ? 'bg-stone-300 text-stone-500 cursor-not-allowed shadow-none'
-                    : 'btn-gold shadow-lg hover:shadow-pink-300/50'
+                  ? 'bg-stone-300 text-stone-500 cursor-not-allowed shadow-none'
+                  : 'btn-gold shadow-lg hover:shadow-pink-300/50'
                   }`}
               >
                 {hasProfanity ? (
@@ -232,8 +232,8 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                 <button
                   onClick={() => setFilterTag('todos')}
                   className={`px-3 py-1 rounded-full font-semibold transition-all ${filterTag === 'todos'
-                      ? 'bg-amber-400 text-stone-900 shadow-sm'
-                      : 'bg-white text-stone-600 hover:bg-pink-50 border border-pink-100'
+                    ? 'bg-amber-400 text-stone-900 shadow-sm'
+                    : 'bg-white text-stone-600 hover:bg-pink-50 border border-pink-100'
                     }`}
                 >
                   Todos
@@ -241,8 +241,8 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                 <button
                   onClick={() => setFilterTag('destacados')}
                   className={`px-3 py-1 rounded-full font-semibold transition-all ${filterTag === 'destacados'
-                      ? 'bg-pink-500 text-white shadow-sm'
-                      : 'bg-white text-stone-600 hover:bg-pink-50 border border-pink-100'
+                    ? 'bg-pink-500 text-white shadow-sm'
+                    : 'bg-white text-stone-600 hover:bg-pink-50 border border-pink-100'
                     }`}
                 >
                   ⭐ Destacados
@@ -263,8 +263,8 @@ export function GuestbookSection({ messages, onAddMessage, onLikeMessage }: Gues
                   <div
                     key={msg.id}
                     className={`relative p-5 rounded-2xl bg-white/95 backdrop-blur-md shadow-sm border transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 ${msg.isPinned
-                        ? 'border-amber-300/80 bg-gradient-to-r from-amber-50/40 via-white to-pink-50/40'
-                        : 'border-pink-100/70'
+                      ? 'border-amber-300/80 bg-gradient-to-r from-amber-50/40 via-white to-pink-50/40'
+                      : 'border-pink-100/70'
                       }`}
                   >
                     {msg.isPinned && (

@@ -1,8 +1,9 @@
-import { useState, createContext, useContext } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 import './index.css'
 import {
   DEFAULT_WEDDING,
   loadWeddingData,
+  loadWeddingDataAsync,
   saveWeddingData,
   type WeddingData
 } from './wedding-config'
@@ -90,19 +91,19 @@ function HeroSection() {
     <section className="relative w-full min-h-screen flex items-center justify-center overflow-hidden pt-44 sm:pt-48 md:pt-52 lg:pt-48 pb-20 px-4 sm:px-6 lg:px-8">
       {/* AMBIENT BG IMAGE */}
       <div
-        className="absolute inset-0 bg-cover bg-center animate-hero-zoom opacity-35"
+        className="absolute inset-0 bg-cover bg-center animate-hero-zoom opacity-45"
         style={{
           backgroundImage: `url(${data.heroBannerUrl || data.mainCouplePhoto})`,
           objectPosition: data.heroPhotoPosition || 'center 30%',
         }}
       />
 
-      {/* RADIANT AMBIENT GRADIENT */}
+      {/* RADIANT AMBIENT GRADIENT VIVO Y LUMINOSO */}
       <div
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(circle at 75% 40%, rgba(217, 119, 6, 0.45) 0%, transparent 60%), linear-gradient(135deg, rgba(30, 10, 50, 0.94) 0%, rgba(65, 20, 95, 0.88) 50%, rgba(20, 8, 35, 0.95) 100%)',
+            'radial-gradient(circle at 80% 25%, rgba(251, 191, 36, 0.45) 0%, transparent 55%), radial-gradient(circle at 20% 75%, rgba(244, 114, 182, 0.4) 0%, transparent 55%), radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.3) 0%, transparent 60%), linear-gradient(135deg, rgba(28, 8, 38, 0.88) 0%, rgba(58, 14, 72, 0.76) 50%, rgba(24, 7, 34, 0.9) 100%)',
         }}
       />
 
@@ -498,44 +499,66 @@ function ScheduleSection() {
 // ── LOCATION SECTION ─────────────────────────────────────────
 function LocationSection() {
   const { data } = useWedding()
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+
+  const handleCopyAddress = (address: string, idx: number) => {
+    navigator.clipboard?.writeText(address)
+    setCopiedIdx(idx)
+    setTimeout(() => setCopiedIdx(null), 2500)
+  }
+
   const venues = [
     {
       title: 'Ceremonia Religiosa',
+      subtitle: 'El Sagrado Sacramento',
       venue: data.ceremonyVenue,
       time: data.ceremonyTime,
       address: data.ceremonyAddress,
       mapUrl: data.googleMapsUrl,
       wazeUrl: data.wazeUrl,
       icon: '⛪',
-      badge: 'Misa Solemne',
+      badge: 'Misa Solemne de Boda',
+      gradient: 'from-amber-400/20 via-purple-500/10 to-pink-500/20',
+      borderGlow: 'hover:border-amber-400/60',
     },
     {
       title: 'Ceremonia Civil & Recepción',
+      subtitle: 'Celebración & Brindis de Gala',
       venue: data.receptionVenue,
-      time: `${data.civilTime || '12:00 m.'} (Civil) / ${data.receptionTime} (Fiesta)`,
+      time: `${data.civilTime || '12:00 m.'} (Civil) · ${data.receptionTime} (Recepción)`,
       address: data.receptionAddress,
       mapUrl: data.googleMapsReceptionUrl,
       wazeUrl: data.wazeUrl,
       icon: '🥂',
-      badge: 'Recepción & Fiesta',
+      badge: 'Recepción & Fiesta de Gala',
+      gradient: 'from-pink-400/20 via-purple-500/10 to-amber-500/20',
+      borderGlow: 'hover:border-pink-400/60',
     },
   ]
 
   return (
     <section
       id="lugar"
-      className="py-24 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#f7f2fc]/50 to-[#fffdfa]"
+      className="py-28 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#fbf8ff] via-[#f7f0fc] to-[#fffdfa] relative overflow-hidden"
     >
-      <div className="max-w-5xl mx-auto">
+      {/* GLOW DECORATIVO DE FONDO */}
+      <div className="absolute top-1/2 left-0 w-80 h-80 bg-purple-200/40 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-10 right-0 w-96 h-96 bg-amber-200/40 rounded-full blur-[130px] pointer-events-none" />
+
+      <div className="max-w-6xl mx-auto relative z-10">
         <div className="text-center mb-16">
-          <p className="section-eyebrow mb-2 reveal" style={{ color: '#8b5cf6' }}>
-            📍 Lugares del Evento 📍
-          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-100/70 border border-purple-200 text-purple-700 text-xs font-bold uppercase tracking-[0.25em] mb-3">
+            <span>📍</span>
+            <span>Ubicaciones Oficiales</span>
+            <span>✨</span>
+          </div>
+
           <h2 className="section-title reveal">
             ¿Dónde <em>Celebramos</em>?
           </h2>
-          <p className="section-subtitle mt-3 reveal">
-            Te esperamos con los brazos abiertos para compartir este hermoso día
+
+          <p className="section-subtitle mt-3 reveal max-w-2xl mx-auto text-stone-600">
+            Hemos preparado todo con inmenso amor para que nos acompañes en los dos momentos más trascendentales de nuestra unión
           </p>
         </div>
 
@@ -543,45 +566,71 @@ function LocationSection() {
           {venues.map((v, i) => (
             <div
               key={i}
-              className="gradient-card rounded-3xl p-8 shadow-lg border border-purple-100 flex flex-col justify-between reveal"
+              className={`relative rounded-3xl p-7 sm:p-9 shadow-xl hover:shadow-2xl transition-all duration-300 border border-white/80 bg-white/90 backdrop-blur-md flex flex-col justify-between group ${v.borderGlow}`}
             >
+              {/* DECORATIVE LIGHT PILL */}
+              <div className={`absolute top-0 right-0 w-48 h-48 bg-gradient-to-br ${v.gradient} rounded-bl-full pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity`} />
+
               <div>
-                <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-200 flex items-center justify-center text-3xl mb-4">
-                  {v.icon}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-100 via-pink-50 to-amber-50 border border-purple-200/70 flex items-center justify-center text-3xl shadow-sm group-hover:scale-110 transition-transform">
+                    {v.icon}
+                  </div>
+                  <span className="text-[0.68rem] font-extrabold uppercase tracking-widest text-purple-700 bg-purple-100/80 px-3.5 py-1.5 rounded-full border border-purple-200 shadow-xs">
+                    {v.badge}
+                  </span>
                 </div>
-                <span className="text-[0.68rem] font-bold uppercase tracking-widest text-purple-700 bg-purple-100/70 px-3 py-1 rounded-full">
-                  {v.badge}
+
+                <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block">
+                  {v.subtitle}
                 </span>
-                <h3 className="font-display text-2xl font-bold text-stone-800 mt-3 mb-2">
+
+                <h3 className="font-display text-2xl sm:text-3xl font-extrabold text-stone-900 mt-1 mb-2">
                   {v.venue}
                 </h3>
-                <p className="text-xs font-bold text-purple-600 mb-2">
-                  ⏰ {v.time}
-                </p>
-                <p className="text-xs sm:text-sm text-stone-600 leading-relaxed mb-6">
+
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-purple-50 text-purple-800 text-xs font-bold mb-3 border border-purple-100">
+                  <span>⏰</span>
+                  <span>{v.time}</span>
+                </div>
+
+                <p className="text-xs sm:text-sm text-stone-600 leading-relaxed mb-6 font-medium">
                   {v.address}
                 </p>
               </div>
 
-              <div className="flex gap-2.5 flex-wrap">
-                <a
-                  href={v.mapUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-gold text-xs py-2.5 px-4 flex-1 justify-center"
-                >
-                  📍 Ver en Google Maps
-                </a>
-                {v.wazeUrl && (
+              <div className="space-y-2.5 pt-2 border-t border-purple-50">
+                <div className="flex gap-2.5 flex-wrap">
                   <a
-                    href={v.wazeUrl}
+                    href={v.mapUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn-gold btn-white text-xs py-2.5 px-4 justify-center"
+                    className="btn-gold text-xs py-3 px-5 flex-1 justify-center shadow-md shadow-amber-300/30 font-bold active:scale-95 transition-transform"
                   >
-                    🚗 Waze
+                    <span>📍 Abrir en Google Maps</span>
+                    <span>↗</span>
                   </a>
-                )}
+
+                  {v.wazeUrl && (
+                    <a
+                      href={v.wazeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-3 rounded-full bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform"
+                    >
+                      <span>🚗 Waze</span>
+                    </a>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleCopyAddress(v.address, i)}
+                  className="w-full py-2 px-3 rounded-xl bg-stone-50 hover:bg-stone-100 text-stone-500 hover:text-stone-800 text-[0.72rem] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>{copiedIdx === i ? '✅' : '📋'}</span>
+                  <span>{copiedIdx === i ? '¡Dirección copiada al portapapeles!' : 'Copiar dirección para taxi o GPS'}</span>
+                </button>
               </div>
             </div>
           ))}
@@ -759,6 +808,21 @@ export default function App() {
   const [data, setData] = useState<WeddingData>(() => loadWeddingData())
   const [adminOpen, setAdminOpen] = useState(false)
   const [petalsEnabled, setPetalsEnabled] = useState(true)
+
+  // Cargar datos completos y frescos desde IndexedDB y Cloud (evita pérdidas por límite de localStorage)
+  useEffect(() => {
+    let isMounted = true
+    loadWeddingDataAsync().then(freshData => {
+      if (isMounted && freshData) {
+        setData(freshData)
+      }
+    }).catch(err => {
+      console.warn("Aviso: No se pudo cargar datos asíncronos de boda", err)
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Universal music state
   const { playing, toggle: toggleMusic, isMuted, toggleMute, needsGesture } = useMusic(data.musicUrl)

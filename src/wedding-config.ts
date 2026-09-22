@@ -42,12 +42,12 @@ export const DEFAULT_WEDDING: WeddingData = {
   receptionTime: "1:00 P.M.",
 
   ceremonyVenue: "Iglesia Señor Qoyllority",
-  ceremonyAddress: "Iglesia Señor Qoyllority",
+  ceremonyAddress: "Parroquia Señor de Qoyllority",
   civilVenue: "Local El Golazo",
   receptionVenue: "Local 'El Golazo'",
   receptionAddress: "Av. Aeropuerto, Local 'El Golazo'",
-  googleMapsUrl: "https://maps.google.com/?q=Iglesia+Senor+Qoyllority",
-  googleMapsReceptionUrl: "https://maps.google.com/?q=Av+Aeropuerto+Local+El+Golazo",
+  googleMapsUrl: "https://maps.app.goo.gl/KqiGuqW1pdv8Ju1U8",
+  googleMapsReceptionUrl: "https://maps.app.goo.gl/nvWQWm5L1xiXoHED7",
   wazeUrl: "https://waze.com/ul?q=Av+Aeropuerto+El+Golazo",
 
   loveStory: [
@@ -186,19 +186,27 @@ export const DEFAULT_WEDDING: WeddingData = {
     { id: "g-5", url: coupleImg, caption: "Luis & Victoria para siempre", category: "historia", objectPosition: "center 15%" },
   ],
 
-  // VIDEOS
+  // VIDEOS ESTELARES DE LA BODA (1: Publicidad/Anuncio, 2: Historia de Amor)
   videos: [
     {
-      id: "v-1",
-      title: "Nuestra Historia de Amor (Luis & Victoria)",
+      id: "v-promo",
+      title: "✨ Tráiler Oficial: Anuncio & Publicidad de la Boda",
       url: "https://www.youtube.com/watch?v=2Vv-BfVoq4g",
       platform: "youtube",
-      category: "Tráiler Principal",
+      category: "Publicidad & Anuncio Oficial",
+      thumbnail: ""
+    },
+    {
+      id: "v-love",
+      title: "💕 Nuestra Hermosa Historia de Amor (Luis & Victoria)",
+      url: "https://www.youtube.com/watch?v=rtOvBOTyX00",
+      platform: "youtube",
+      category: "Historia de Amor & Documental",
       thumbnail: ""
     }
   ],
   youtubeVideoId: "2Vv-BfVoq4g",
-  videoTitle: "Invitación Oficial en Video",
+  videoTitle: "Tráiler Oficial de la Boda",
 
   // FORO DE MENSAJES CON FILTRO
   guestbook: [
@@ -293,34 +301,59 @@ export const DEFAULT_WEDDING: WeddingData = {
 // ── STORAGE KEY ───────────────────────────────────────────────
 const STORAGE_KEY = 'wedding_data_luis_victoria_v3'
 
+import { getStoredWeddingData, saveStoredWeddingData } from './utils/storageService'
+
+export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
+  return {
+    ...DEFAULT_WEDDING,
+    ...parsed,
+    loveStory: parsed.loveStory?.length ? parsed.loveStory : DEFAULT_WEDDING.loveStory,
+    schedule: parsed.schedule?.length ? parsed.schedule : DEFAULT_WEDDING.schedule,
+    stories: parsed.stories?.length ? parsed.stories : DEFAULT_WEDDING.stories,
+    galleryPhotos: parsed.galleryPhotos?.length ? parsed.galleryPhotos : DEFAULT_WEDDING.galleryPhotos,
+    guestbook: parsed.guestbook?.length ? parsed.guestbook : DEFAULT_WEDDING.guestbook,
+    videos: parsed.videos?.length ? parsed.videos : DEFAULT_WEDDING.videos,
+    announcement: parsed.announcement ? parsed.announcement : DEFAULT_WEDDING.announcement,
+    rsvpList: parsed.rsvpList?.length ? parsed.rsvpList : DEFAULT_WEDDING.rsvpList,
+  }
+}
+
 export function loadWeddingData(): WeddingData {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       const parsed = JSON.parse(stored)
-      return {
-        ...DEFAULT_WEDDING,
-        ...parsed,
-        loveStory: parsed.loveStory?.length ? parsed.loveStory : DEFAULT_WEDDING.loveStory,
-        schedule: parsed.schedule?.length ? parsed.schedule : DEFAULT_WEDDING.schedule,
-        stories: parsed.stories?.length ? parsed.stories : DEFAULT_WEDDING.stories,
-        galleryPhotos: parsed.galleryPhotos?.length ? parsed.galleryPhotos : DEFAULT_WEDDING.galleryPhotos,
-        guestbook: parsed.guestbook?.length ? parsed.guestbook : DEFAULT_WEDDING.guestbook,
-        videos: parsed.videos?.length ? parsed.videos : DEFAULT_WEDDING.videos,
-        announcement: parsed.announcement ? parsed.announcement : DEFAULT_WEDDING.announcement,
-        rsvpList: parsed.rsvpList?.length ? parsed.rsvpList : DEFAULT_WEDDING.rsvpList,
-      }
+      return mergeWithDefaults(parsed)
     }
   } catch (err) {
-    console.warn("Could not load stored wedding data, using defaults", err)
+    console.warn("Could not load stored wedding data from localStorage, using defaults", err)
   }
   return DEFAULT_WEDDING
 }
 
+export async function loadWeddingDataAsync(): Promise<WeddingData> {
+  try {
+    const asyncData = await getStoredWeddingData()
+    if (asyncData) {
+      return mergeWithDefaults(asyncData)
+    }
+  } catch (err) {
+    console.warn("Could not load stored wedding data from IndexedDB, falling back", err)
+  }
+  return loadWeddingData()
+}
+
 export function saveWeddingData(data: WeddingData): void {
+  // 1. Guardar en IndexedDB de forma no bloqueante (soporta fotos pesadas sin límite de cuota)
+  saveStoredWeddingData(data).catch(err => {
+    console.error("Error al persistir en IndexedDB:", err)
+  })
+
+  // 2. Intentar guardar en localStorage si cabe
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  } catch (err) {
-    console.error("Failed to save wedding data to localStorage", err)
+  } catch {
+    // Si excede la cuota de localStorage por fotos pesadas, los datos quedan a salvo en IndexedDB
   }
 }
+
