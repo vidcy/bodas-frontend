@@ -6,7 +6,6 @@ import gallery1 from './assets/gallery1.jpg'
 import gallery2 from './assets/gallery2.jpg'
 import gallery3 from './assets/gallery3.jpg'
 import gallery4 from './assets/gallery4.jpg'
-import heroBg from './assets/hero_bg.jpg'
 
 export const DEFAULT_WEDDING: WeddingData = {
   groomName: "Luis",
@@ -16,9 +15,9 @@ export const DEFAULT_WEDDING: WeddingData = {
   hashtag: "#LuisYVictoria",
   tagline: "Unidos por el amor, bendecidos por Dios y nuestra hermosa familia",
   heroSubtitle: "¡Nos casamos! Matrimonio Religioso y Civil",
-  heroBannerUrl: heroBg,
+  heroBannerUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790191222462-xnxds7.jpeg",
   heroPhotoPosition: "center 30%",
-  mainCouplePhoto: coupleImg,
+  mainCouplePhoto: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790191251660-limbw3.jpeg",
   couplePhotoPosition: "center 20%",
 
   spiritualBlessing: "Con la bendición de Dios y de nuestros padres. Queremos que estés presente en este día donde complementaremos nuestro amor con un Sí para toda la vida.",
@@ -191,7 +190,7 @@ export const DEFAULT_WEDDING: WeddingData = {
     {
       id: "v-promo",
       title: "✨ Tráiler Oficial: Anuncio & Publicidad de la Boda",
-      url: "https://www.youtube.com/watch?v=2Vv-BfVoq4g",
+      url: "https://youtu.be/niM_ogm7DYw?si=nlbdygA3UdbfZGyk",
       platform: "youtube",
       category: "Publicidad & Anuncio Oficial",
       thumbnail: ""
@@ -205,7 +204,7 @@ export const DEFAULT_WEDDING: WeddingData = {
       thumbnail: ""
     }
   ],
-  youtubeVideoId: "2Vv-BfVoq4g",
+  youtubeVideoId: "niM_ogm7DYw",
   videoTitle: "Tráiler Oficial de la Boda",
 
   // FORO DE MENSAJES CON FILTRO
@@ -300,10 +299,16 @@ export const DEFAULT_WEDDING: WeddingData = {
 
 import { getStoredWeddingData, saveStoredWeddingData, sanitizeWeddingData } from './utils/storageService'
 
+const CACHE_KEY = 'wedding_data_cached_v1'
+
 export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
   const merged: WeddingData = {
     ...DEFAULT_WEDDING,
     ...parsed,
+    heroBannerUrl: parsed.heroBannerUrl || DEFAULT_WEDDING.heroBannerUrl,
+    mainCouplePhoto: parsed.mainCouplePhoto || DEFAULT_WEDDING.mainCouplePhoto,
+    youtubeVideoId: parsed.youtubeVideoId || DEFAULT_WEDDING.youtubeVideoId,
+    videoTitle: parsed.videoTitle || DEFAULT_WEDDING.videoTitle,
     loveStory: parsed.loveStory?.length ? parsed.loveStory : DEFAULT_WEDDING.loveStory,
     schedule: parsed.schedule?.length ? parsed.schedule : DEFAULT_WEDDING.schedule,
     stories: parsed.stories?.length ? parsed.stories : DEFAULT_WEDDING.stories,
@@ -317,7 +322,17 @@ export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
 }
 
 export function loadWeddingData(): WeddingData {
-  // Retorna los valores base por defecto mientras se sincroniza inmediatamente con el backend MySQL
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const cached = localStorage.getItem(CACHE_KEY)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (parsed && parsed.groomName) {
+          return mergeWithDefaults(parsed)
+        }
+      }
+    }
+  } catch {}
   return DEFAULT_WEDDING
 }
 
@@ -325,18 +340,32 @@ export async function loadWeddingDataAsync(): Promise<WeddingData> {
   try {
     const asyncData = await getStoredWeddingData()
     if (asyncData) {
-      return mergeWithDefaults(asyncData)
+      const merged = mergeWithDefaults(asyncData)
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(merged))
+        }
+      } catch {}
+      return merged
     }
   } catch (err) {
     console.warn("Aviso consultando base de datos backend:", err)
   }
-  return DEFAULT_WEDDING
+  return loadWeddingData()
 }
 
 export function saveWeddingData(data: WeddingData): void {
+  const sanitized = sanitizeWeddingData(data)
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(sanitized))
+    }
+  } catch {}
+
   // Persiste DIRECTAMENTE en la base de datos MySQL vía Backend NestJS
-  saveStoredWeddingData(data).catch(err => {
+  saveStoredWeddingData(sanitized).catch(err => {
     console.error("Error al persistir en la base de datos MySQL:", err)
   })
 }
+
 

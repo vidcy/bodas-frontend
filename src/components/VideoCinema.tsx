@@ -10,7 +10,7 @@ interface VideoCinemaProps {
 }
 
 function parseVideoUrl(url: string): { type: 'youtube' | 'vimeo' | 'direct'; embedUrl: string; videoId?: string } {
-  if (!url) return { type: 'youtube', embedUrl: 'https://www.youtube.com/embed/2Vv-BfVoq4g?enablejsapi=1&rel=0', videoId: '2Vv-BfVoq4g' }
+  if (!url) return { type: 'youtube', embedUrl: 'https://www.youtube.com/embed/niM_ogm7DYw?enablejsapi=1&rel=0', videoId: 'niM_ogm7DYw' }
 
   // YouTube match (watch?v=, embed/, youtu.be/, shorts/)
   const ytMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|video\/))([\w-]{11})/)
@@ -50,14 +50,16 @@ export function VideoCinema({
   const fallbackVideos: VideoItem[] = [
     {
       id: 'v-promo-default',
-      title: '✨ Tráiler Oficial: Anuncio & Publicidad de la Boda',
-      url: defaultVideoId ? `https://www.youtube.com/watch?v=${defaultVideoId}` : 'https://www.youtube.com/watch?v=2Vv-BfVoq4g',
+      title: defaultTitle || '✨ Tráiler Oficial: Anuncio & Publicidad de la Boda',
+      url: defaultVideoId
+        ? (defaultVideoId.startsWith('http') ? defaultVideoId : `https://www.youtube.com/watch?v=${defaultVideoId}`)
+        : 'https://youtu.be/niM_ogm7DYw?si=nlbdygA3UdbfZGyk',
       platform: 'youtube',
       category: 'Publicidad & Anuncio Oficial'
     },
     {
       id: 'v-love-default',
-      title: defaultTitle || '💕 Nuestra Hermosa Historia de Amor (Luis & Victoria)',
+      title: '💕 Nuestra Hermosa Historia de Amor (Luis & Victoria)',
       url: 'https://www.youtube.com/watch?v=rtOvBOTyX00',
       platform: 'youtube',
       category: 'Historia de Amor & Documental'
@@ -67,6 +69,13 @@ export function VideoCinema({
   const allVideos: VideoItem[] = videos && videos.length > 0 ? videos : fallbackVideos
 
   const [activeVideo, setActiveVideo] = useState<VideoItem>(allVideos[0])
+
+  // Sincronizar dinámicamente si los videos de la base de datos se cargan o actualizan
+  useEffect(() => {
+    if (videos && videos.length > 0) {
+      setActiveVideo(videos[0])
+    }
+  }, [videos])
   const [isPlaying, setIsPlaying] = useState<boolean>(false)
   const [isLockedPlay, setIsLockedPlay] = useState<boolean>(false) // Si el usuario dio Play explícito
   const [copied, setCopied] = useState<boolean>(false)
@@ -95,7 +104,7 @@ export function VideoCinema({
       onVideoPlay?.() // Silencia y pausa la música de fondo
       sendIframeCommand('playVideo')
       if (videoElemRef.current) {
-        videoElemRef.current.play().catch(() => {})
+        videoElemRef.current.play().catch(() => { })
       }
     }
   }
@@ -122,7 +131,7 @@ export function VideoCinema({
     onVideoPlay?.()
     sendIframeCommand('playVideo')
     if (videoElemRef.current) {
-      videoElemRef.current.play().catch(() => {})
+      videoElemRef.current.play().catch(() => { })
     }
   }
 
@@ -156,7 +165,7 @@ export function VideoCinema({
             }
           }
         }
-      } catch {}
+      } catch { }
     }
 
     window.addEventListener('message', handleMessage)
@@ -230,19 +239,17 @@ export function VideoCinema({
                   handlePauseOrStop()
                   setActiveVideo(vid)
                 }}
-                className={`relative p-5 rounded-3xl text-left transition-all duration-300 cursor-pointer overflow-hidden border ${
-                  isSelected
-                    ? 'bg-gradient-to-br from-amber-400/25 via-pink-500/25 to-purple-600/30 border-amber-400 shadow-xl shadow-amber-500/15 scale-[1.02]'
-                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-stone-300 hover:border-white/20'
-                }`}
+                className={`relative p-5 rounded-3xl text-left transition-all duration-300 cursor-pointer overflow-hidden border ${isSelected
+                  ? 'bg-gradient-to-br from-amber-400/25 via-pink-500/25 to-purple-600/30 border-amber-400 shadow-xl shadow-amber-500/15 scale-[1.02]'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-stone-300 hover:border-white/20'
+                  }`}
               >
                 <div className="flex items-start gap-4">
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 font-bold shadow-lg transition-transform ${
-                      isSelected
-                        ? 'bg-gradient-to-tr from-amber-400 to-rose-500 text-white scale-110'
-                        : 'bg-white/10 text-amber-300'
-                    }`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 font-bold shadow-lg transition-transform ${isSelected
+                      ? 'bg-gradient-to-tr from-amber-400 to-rose-500 text-white scale-110'
+                      : 'bg-white/10 text-amber-300'
+                      }`}
                   >
                     {isFirst ? '📢' : '💖'}
                   </div>
@@ -274,13 +281,12 @@ export function VideoCinema({
         <div
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
-          className={`relative rounded-3xl overflow-hidden shadow-2xl border transition-all duration-500 bg-black/95 backdrop-blur-2xl mb-8 group ${
-            isLockedPlay
-              ? 'border-amber-400 ring-4 ring-amber-400/30 shadow-[0_0_60px_rgba(251,191,36,0.35)]'
-              : isPlaying
+          className={`relative rounded-3xl overflow-hidden shadow-2xl border transition-all duration-500 bg-black/95 backdrop-blur-2xl mb-8 group ${isLockedPlay
+            ? 'border-amber-400 ring-4 ring-amber-400/30 shadow-[0_0_60px_rgba(251,191,36,0.35)]'
+            : isPlaying
               ? 'border-pink-400/80 shadow-[0_0_40px_rgba(244,114,182,0.3)]'
               : 'border-white/20'
-          }`}
+            }`}
         >
           {/* LUZ RADIAL */}
           <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/30 via-amber-400/20 to-purple-600/30 blur-xl opacity-75 group-hover:opacity-100 transition-opacity pointer-events-none" />
@@ -317,7 +323,7 @@ export function VideoCinema({
                 className="absolute inset-0 flex flex-col items-center justify-center bg-radial from-purple-950/80 via-black/90 to-black cursor-pointer group"
                 style={{
                   backgroundImage: parsed.videoId
-                    ? `linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), url(https://img.youtube.com/vi/${parsed.videoId}/maxresdefault.jpg)`
+                    ? `linear-gradient(rgba(0,0,0,0.65), rgba(0,0,0,0.85)), url(https://img.youtube.com/vi/${parsed.videoId}/hqdefault.jpg)`
                     : undefined,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
@@ -357,8 +363,8 @@ export function VideoCinema({
                   {isLockedPlay
                     ? '🔒 Modo Cine Fijo Activo'
                     : isPlaying
-                    ? '👁️ Previsualizando al situar cursor'
-                    : '🎵 Música de Fondo Activa'}
+                      ? '👁️ Previsualizando al situar cursor'
+                      : '🎵 Música de Fondo Activa'}
                 </span>
               </div>
               <h3 className="font-display text-lg sm:text-2xl font-bold text-white">
