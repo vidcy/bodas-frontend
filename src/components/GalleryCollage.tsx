@@ -36,14 +36,31 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
 
   const total = filteredPhotos.length
 
-  // Correventanas: movimiento suave automático si no se interactúa
+  const sectionRef = useRef<HTMLElement>(null)
+  const [isInView, setIsInView] = useState<boolean>(false)
+
+  // Solo activar auto-correventanas cuando la sección esté visible en pantalla
   useEffect(() => {
-    if (!isAutoPlaying || isHovered || total <= 1 || lightboxPhoto !== null) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsInView(entry.isIntersecting)
+        })
+      },
+      { threshold: 0.1 }
+    )
+    if (sectionRef.current) observer.observe(sectionRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  // Correventanas: movimiento suave automático ÚNICAMENTE si el usuario está viendo la galería
+  useEffect(() => {
+    if (!isInView || !isAutoPlaying || isHovered || total <= 1 || lightboxPhoto !== null) return
     const timer = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % total)
-    }, 3800)
+    }, 4500)
     return () => clearInterval(timer)
-  }, [isAutoPlaying, isHovered, total, lightboxPhoto])
+  }, [isInView, isAutoPlaying, isHovered, total, lightboxPhoto])
 
   // Navegación por teclado en Lightbox
   useEffect(() => {
@@ -102,6 +119,7 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
 
   return (
     <section
+      ref={sectionRef}
       id="galeria"
       className="py-28 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-[#13071b] via-[#210c2e] to-[#120718] text-white relative overflow-hidden"
     >

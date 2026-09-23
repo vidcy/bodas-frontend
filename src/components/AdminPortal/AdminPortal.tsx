@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type {
   WeddingData,
   InteractiveStory,
@@ -13,6 +13,7 @@ import {
   getCloudConfig,
   saveCloudConfig,
   uploadPhotoToBackend,
+  saveStoredWeddingData,
   DEFAULT_BACKEND_API,
   type CloudConfig
 } from '../../utils/storageService'
@@ -47,9 +48,18 @@ export function AdminPortal({
   const [activeTab, setActiveTab] = useState<
     'dashboard' | 'comunicados' | 'banners' | 'stories' | 'videos' | 'galeria' | 'foro' | 'rsvp' | 'general' | 'respaldos'
   >('dashboard')
-  const [saveToast, setSaveToast] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
+  const [saveErrorMsg, setSaveErrorMsg] = useState('')
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizingMsg, setOptimizingMsg] = useState('')
+
+  // Sincronizar localData con la base de datos fresca cada vez que se abre el modal o cambia data
+  useEffect(() => {
+    if (open && data) {
+      setLocalData(data)
+    }
+  }, [open, data])
 
   // File upload refs
   const bannerFileRef = useRef<HTMLInputElement>(null)
@@ -141,11 +151,27 @@ export function AdminPortal({
     setAuthenticated(false)
   }
 
-  const handleSave = (customData?: WeddingData) => {
+  const handleSave = async (customData?: WeddingData) => {
     const toSave = customData || localData
-    onSaveData(toSave)
-    setSaveToast(true)
-    setTimeout(() => setSaveToast(false), 3000)
+    setIsSaving(true)
+    setSaveSuccessMsg('')
+    setSaveErrorMsg('')
+    try {
+      const res = await saveStoredWeddingData(toSave)
+      onSaveData(toSave)
+      setLocalData(toSave)
+      if (res.success || res.cloudSynced) {
+        setSaveSuccessMsg('✅ ¡Cambios guardados con éxito en la base de datos MySQL!')
+        setTimeout(() => setSaveSuccessMsg(''), 4000)
+      } else {
+        setSaveErrorMsg(res.error || 'Aviso: No se pudo confirmar el guardado en el servidor backend.')
+        setTimeout(() => setSaveErrorMsg(''), 4000)
+      }
+    } catch (err: any) {
+      setSaveErrorMsg(`Error al guardar: ${err.message}`)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // Upload helper con soporte para Backend NestJS y compresión inteligente WebP
@@ -393,16 +419,23 @@ export function AdminPortal({
                   {optimizingMsg}
                 </span>
               )}
-              {saveToast && (
-                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200 animate-bounce">
-                  ✅ Cambios guardados en IndexedDB
+              {saveSuccessMsg && (
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3.5 py-1.5 rounded-full border border-emerald-200 animate-bounce">
+                  {saveSuccessMsg}
+                </span>
+              )}
+              {saveErrorMsg && (
+                <span className="text-xs font-bold text-rose-700 bg-rose-50 px-3.5 py-1.5 rounded-full border border-rose-200">
+                  {saveErrorMsg}
                 </span>
               )}
               <button
+                type="button"
                 onClick={() => handleSave()}
-                className="btn-gold text-xs py-2 px-4"
+                disabled={isSaving}
+                className="btn-gold text-xs py-2 px-4 cursor-pointer disabled:opacity-50"
               >
-                💾 Guardar Cambios
+                {isSaving ? '💾 Guardando en MySQL...' : '💾 Guardar Cambios'}
               </button>
               <button
                 onClick={handleLogout}
@@ -692,9 +725,11 @@ export function AdminPortal({
                         accept="image/*"
                         className="hidden"
                         onChange={e =>
-                          handleFileUpload(e, url =>
-                            setLocalData(prev => ({ ...prev, heroBannerUrl: url }))
-                          )
+                          handleFileUpload(e, url => {
+                            const updated = { ...localData, heroBannerUrl: url }
+                            setLocalData(updated)
+                            handleSave(updated)
+                          })
                         }
                       />
                     </div>
@@ -773,9 +808,11 @@ export function AdminPortal({
                       accept="image/*"
                       className="hidden"
                       onChange={e =>
-                        handleFileUpload(e, url =>
-                          setLocalData(prev => ({ ...prev, mainCouplePhoto: url }))
-                        )
+                        handleFileUpload(e, url => {
+                          const updated = { ...localData, mainCouplePhoto: url }
+                          setLocalData(updated)
+                          handleSave(updated)
+                        })
                       }
                     />
                   </div>

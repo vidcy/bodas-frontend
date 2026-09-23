@@ -263,19 +263,29 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
     const formData = new FormData()
     formData.append('file', file, filename || (file as File).name || 'foto.webp')
 
-    const res = await fetch(`${DEFAULT_BACKEND_API}/upload`, {
+    // 1. Intentar DEFAULT_BACKEND_API/upload
+    let res: Response | null = await fetch(`${DEFAULT_BACKEND_API}/upload`, {
       method: 'POST',
       body: formData,
-    })
+    }).catch(() => null)
 
-    if (res.ok) {
+    // 2. Fallback a proxy /api/upload
+    if (!res || !res.ok) {
+      res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      }).catch(() => null)
+    }
+
+    if (res && res.ok) {
       const json = await res.json()
       if (json && json.url) {
+        console.log('✅ Foto subida exitosamente al servidor:', json.url)
         return json.url as string
       }
     }
-  } catch (err) {
-    console.info('Backend upload no disponible, se utilizará optimización WebP en cliente.')
+  } catch (err: any) {
+    console.warn('Backend upload no disponible:', err.message)
   }
   return null
 }
@@ -286,29 +296,39 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
 export async function saveStoredWeddingData(data: WeddingData): Promise<{ success: boolean; cloudSynced?: boolean; error?: string }> {
   let cloudSynced = false
 
-  // 1. Guardar de forma directa en el Backend NestJS / MySQL
-  const targetUrl = `${DEFAULT_BACKEND_API}/wedding`
-
   try {
-    const res = await fetch(targetUrl, {
+    // 1. Intentar a través de DEFAULT_BACKEND_API/wedding
+    let res: Response | null = await fetch(`${DEFAULT_BACKEND_API}/wedding`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data)
-    })
-    if (res.ok) {
+    }).catch(() => null)
+
+    // 2. Fallback a través del proxy local /api/wedding
+    if (!res || !res.ok) {
+      res = await fetch('/api/wedding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      }).catch(() => null)
+    }
+
+    if (res && res.ok) {
       cloudSynced = true
       console.log('✅ Datos guardados y sincronizados DIRECTAMENTE en MySQL vía NestJS')
       return { success: true, cloudSynced: true }
     } else {
-      console.warn('Backend respondió con status:', res.status)
+      console.warn('Backend respondió con status al guardar:', res?.status)
     }
   } catch (err: any) {
     console.error('Error al guardar en el Backend:', err.message)
   }
 
-  // 2. Respaldo secundario si el backend estuviera momentáneamente offline
+  // 2. Respaldo secundario en IndexedDB
   try {
     await saveToIndexedDB(data)
   } catch {}
