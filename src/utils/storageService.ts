@@ -65,56 +65,154 @@ export function saveCloudConfig(config: CloudConfig): void {
 }
 
 /**
- * Obtiene los datos de la boda desde el Backend NestJS + MySQL, con fallback a IndexedDB y LocalStorage
+ * Verifica la salud y conectividad con la base de datos MySQL a través del Backend
  */
-export async function getStoredWeddingData(): Promise<WeddingData | null> {
-  const cloud = getCloudConfig()
-  const targetUrl = cloud.enabled && cloud.endpointUrl ? cloud.endpointUrl : `${DEFAULT_BACKEND_API}/wedding`
-
-  // 1. Intentar cargar desde el backend NestJS con MySQL
+export async function checkBackendHealth(): Promise<{ ok: boolean; message: string; latencyMs: number; details?: any }> {
+  const start = performance.now()
   try {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 2000) // 2s timeout suave
-
-    const res = await fetch(targetUrl, {
+    const timeoutId = setTimeout(() => controller.abort(), 3000)
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/health`, {
       signal: controller.signal,
-      headers: cloud.apiKey ? { 'apikey': cloud.apiKey, 'Authorization': `Bearer ${cloud.apiKey}` } : {}
     })
     clearTimeout(timeoutId)
+    const latencyMs = Math.round(performance.now() - start)
+    if (res.ok) {
+      const data = await res.json()
+      return { ok: true, message: 'MySQL Conectado', latencyMs, details: data }
+    }
+    return { ok: false, message: `Error HTTP ${res.status}`, latencyMs }
+  } catch (err: any) {
+    const latencyMs = Math.round(performance.now() - start)
+    return { ok: false, message: err?.message || 'Servidor Offline', latencyMs }
+  }
+}
 
+/**
+ * Registra una confirmación de asistencia (RSVP) directamente en la base de datos MySQL
+ */
+export async function submitRsvpToBackend(rsvp: {
+  name: string
+  phone: string
+  guestsCount?: number
+  attendance?: 'confirmed' | 'declined'
+  dietary?: string
+  notes?: string
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/rsvp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rsvp),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return { success: true, data }
+    }
+    return { success: false, error: `Error ${res.status}` }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Error de conexión' }
+  }
+}
+
+/**
+ * Registra un mensaje en el Libro de Firmas directamente en MySQL vía Backend
+ */
+export async function submitGuestbookMessageToBackend(msg: {
+  author: string
+  relationship?: string
+  message: string
+  emoji?: string
+}): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return { success: true, data }
+    }
+    return { success: false, error: `Error ${res.status}` }
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'Error de conexión' }
+  }
+}
+
+/**
+ * Incrementa un Me Gusta en un mensaje del Libro de Firmas en MySQL
+ */
+export async function likeGuestbookMessageInBackend(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook/${encodeURIComponent(id)}/like`, {
+      method: 'POST',
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Elimina un mensaje del Libro de Firmas en MySQL
+ */
+export async function deleteGuestbookMessageFromBackend(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Elimina una confirmación RSVP de MySQL
+ */
+export async function deleteRsvpFromBackend(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/rsvp/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Obtiene los datos de la boda directamente desde el Backend NestJS + MySQL
+ */
+export async function getStoredWeddingData(): Promise<WeddingData | null> {
+  const targetUrl = `${DEFAULT_BACKEND_API}/wedding`
+
+  try {
+    const res = await fetch(targetUrl)
     if (res.ok) {
       const backendData = await res.json()
       if (backendData && typeof backendData === 'object') {
         const actualData = Array.isArray(backendData) ? backendData[0] : backendData
         if (actualData && actualData.groomName) {
-          console.log('✅ Datos sincronizados exitosamente desde Backend NestJS (MySQL)')
-          await saveToIndexedDB(actualData)
+          console.log('✅ Datos de boda cargados DIRECTAMENTE desde MySQL vía NestJS')
+          // Limpiar caché local obsoleta para que nunca sobrescriba la base de datos
+          try {
+            localStorage.removeItem(LOCAL_STORAGE_KEY)
+          } catch {}
           return actualData as WeddingData
         }
       }
     }
-  } catch (err) {
-    console.info('Aviso: Backend local no detectado o en espera. Usando almacenamiento seguro en IndexedDB:', (err as any).message)
+  } catch (err: any) {
+    console.warn('Aviso al conectar con MySQL:', err.message)
   }
 
-  // 2. Intentar cargar desde IndexedDB (sin límite de 5MB)
+  // Si el backend no responde, intentar IndexedDB temporalmente
   try {
     const localDbData = await getFromIndexedDB()
     if (localDbData) return localDbData
-  } catch (err) {
-    console.warn('Error leyendo de IndexedDB, intentando localStorage:', err)
-  }
-
-  // 3. Fallback a localStorage
-  try {
-    const raw = localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      return parsed as WeddingData
-    }
-  } catch (err) {
-    console.warn('Error leyendo de localStorage:', err)
-  }
+  } catch {}
 
   return null
 }
@@ -183,49 +281,39 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
 }
 
 /**
- * Guarda los datos de la boda en IndexedDB, localStorage y en el Backend NestJS (MySQL)
+ * Guarda los datos de la boda DIRECTAMENTE en el Backend NestJS y la base de datos MySQL
  */
 export async function saveStoredWeddingData(data: WeddingData): Promise<{ success: boolean; cloudSynced?: boolean; error?: string }> {
-  let success = false
   let cloudSynced = false
 
-  // 1. Guardar en IndexedDB (soporta fotos pesadas sin problemas)
-  try {
-    await saveToIndexedDB(data)
-    success = true
-  } catch (e) {
-    console.error('Error al guardar en IndexedDB:', e)
-  }
-
-  // 2. Intentar guardar en localStorage con try/catch seguro
-  try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data))
-  } catch (e) {
-    console.info('localStorage cuota alcanzada, datos asegurados en IndexedDB.')
-  }
-
-  // 3. Sincronizar con el Backend NestJS / MySQL
-  const cloud = getCloudConfig()
-  const targetUrl = cloud.enabled && cloud.endpointUrl ? cloud.endpointUrl : `${DEFAULT_BACKEND_API}/wedding`
+  // 1. Guardar de forma directa en el Backend NestJS / MySQL
+  const targetUrl = `${DEFAULT_BACKEND_API}/wedding`
 
   try {
     const res = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(cloud.apiKey ? { 'apikey': cloud.apiKey, 'Authorization': `Bearer ${cloud.apiKey}` } : {})
       },
       body: JSON.stringify(data)
     })
     if (res.ok) {
       cloudSynced = true
-      console.log('✅ Datos guardados y sincronizados exitosamente en MySQL vía NestJS')
+      console.log('✅ Datos guardados y sincronizados DIRECTAMENTE en MySQL vía NestJS')
+      return { success: true, cloudSynced: true }
+    } else {
+      console.warn('Backend respondió con status:', res.status)
     }
-  } catch (err) {
-    console.info('Aviso: No se pudo enviar al backend local en este momento, datos protegidos en IndexedDB.')
+  } catch (err: any) {
+    console.error('Error al guardar en el Backend:', err.message)
   }
 
-  return { success, cloudSynced }
+  // 2. Respaldo secundario si el backend estuviera momentáneamente offline
+  try {
+    await saveToIndexedDB(data)
+  } catch {}
+
+  return { success: cloudSynced, cloudSynced }
 }
 
 /**

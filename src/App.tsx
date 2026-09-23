@@ -20,6 +20,12 @@ import { DressCodeGuide } from './components/DressCodeGuide'
 import { FaqSection } from './components/FaqSection'
 import { GuestbookSection } from './components/GuestbookSection'
 import { AdminPortal } from './components/AdminPortal/AdminPortal'
+import { RsvpFormSection } from './components/RsvpFormSection'
+import { BackendStatusBadge } from './components/BackendStatusBadge'
+import { DidacticScheduleSection } from './components/DidacticScheduleSection'
+import { WeddingLiveChat } from './components/WeddingLiveChat'
+import { getGoogleCalendarUrl, downloadIcsCalendar } from './utils/calendarHelper'
+import { likeGuestbookMessageInBackend, deleteGuestbookMessageFromBackend, submitGuestbookMessageToBackend } from './utils/storageService'
 
 // ── WEDDING DATA CONTEXT ─────────────────────────────────────
 const WeddingCtx = createContext<{
@@ -175,6 +181,19 @@ function HeroSection() {
             <a href="#rsvp" className="btn-gold btn-white">
               💌 Confirmar Asistencia
             </a>
+            <button
+              onClick={() => window.open(getGoogleCalendarUrl(data), '_blank')}
+              className="btn-gold shadow-lg flex items-center gap-1.5 cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: '#ffffff',
+                boxShadow: '0 8px 25px rgba(16, 185, 129, 0.35)',
+              }}
+              title="Guardar en Google Calendar"
+            >
+              <span>📅</span>
+              <span>Agendar Fecha</span>
+            </button>
           </div>
         </div>
 
@@ -284,6 +303,26 @@ function CountdownSection() {
               </span>
             </div>
           ))}
+        </div>
+
+        {/* CALENDAR SHORTCUTS */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5 reveal">
+          <a
+            href={getGoogleCalendarUrl(data)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-5 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-purple-950 bg-white border border-purple-200 shadow-md hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <span>📅</span>
+            <span>Agregar a Google Calendar</span>
+          </a>
+          <button
+            onClick={() => downloadIcsCalendar(data)}
+            className="px-5 py-3 rounded-full text-xs font-bold uppercase tracking-wider text-purple-950 bg-purple-50 hover:bg-purple-100 border border-purple-200 shadow-md hover:scale-105 transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <span>🍏</span>
+            <span>Descargar iCal / Outlook (.ics)</span>
+          </button>
         </div>
       </div>
     </section>
@@ -448,53 +487,6 @@ function ArtistsSection() {
   )
 }
 
-// ── SCHEDULE SECTION ─────────────────────────────────────────
-function ScheduleSection() {
-  const { data } = useWedding()
-  return (
-    <section id="programa" className="py-24 px-4 sm:px-6 lg:px-8 bg-white">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-16">
-          <p className="section-eyebrow mb-2 reveal" style={{ color: '#8b5cf6' }}>
-            🗓️ Itinerario Oficial del Sábado 24 de Octubre 🗓️
-          </p>
-          <h2 className="section-title reveal">
-            Programa del <em>Gran Día</em>
-          </h2>
-          <p className="section-subtitle mt-3 reveal">
-            Desde la misa solemne en la Iglesia Señor Qoyllority hasta la fiesta bailable en el Local El Golazo
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 reveal">
-          {data.schedule.map((item, idx) => (
-            <div
-              key={idx}
-              className="p-5 rounded-3xl bg-stone-50/80 border border-purple-100 flex items-center gap-4 hover:bg-purple-50/40 hover:scale-[1.02] transition-all"
-            >
-              <div className="w-14 h-14 rounded-2xl bg-white shadow-md border border-purple-100 flex items-center justify-center text-2xl flex-shrink-0">
-                {item.icon}
-              </div>
-              <div className="min-w-0 flex-1">
-                <span className="text-[0.68rem] font-extrabold text-purple-700 tracking-wider uppercase block">
-                  {item.time}
-                </span>
-                <h4 className="font-display text-base font-bold text-stone-900 truncate">
-                  {item.event}
-                </h4>
-                {item.detail && (
-                  <p className="text-xs text-stone-500 truncate mt-0.5">
-                    {item.detail}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
 
 // ── LOCATION SECTION ─────────────────────────────────────────
 function LocationSection() {
@@ -716,61 +708,17 @@ function GiftsSection() {
 
 // ── RSVP SECTION ─────────────────────────────────────────────
 function RsvpSection() {
-  const { data } = useWedding()
-  const whatsappUrl = `https://wa.me/${data.rsvpPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-    data.rsvpWhatsappMessage
-  )}`
-
+  const { data, setData } = useWedding()
   return (
-    <section
-      id="rsvp"
-      className="relative py-28 px-4 sm:px-6 lg:px-8 text-center text-white overflow-hidden"
-      style={{
-        background: 'linear-gradient(135deg, #7c3aed 0%, #9333ea 50%, #c026d3 100%)',
+    <RsvpFormSection
+      data={data}
+      onRsvpAdded={(guest) => {
+        setData({
+          ...data,
+          rsvpList: [guest, ...(data.rsvpList || [])],
+        })
       }}
-    >
-      <StarsBackground count={50} />
-
-      <div className="relative z-10 max-w-2xl mx-auto">
-        <p className="section-eyebrow mb-2 reveal" style={{ color: '#fae8c8' }}>
-          💌 Tu Presencia es Nuestro Mayor Regalo 💌
-        </p>
-        <h2 className="section-title reveal" style={{ color: '#ffffff' }}>
-          ¡Confirma tu <em>Asistencia</em>!
-        </h2>
-        <p className="section-subtitle mt-3 mb-10 reveal" style={{ color: 'rgba(255,255,255,0.88)' }}>
-          Por favor confirma tu presencia antes del <strong>{data.rsvpDeadline}</strong> para disponer de tus lugares en la mesa de gala.
-        </p>
-
-        <div className="glass-panel-dark rounded-3xl p-8 border border-white/25 shadow-2xl reveal">
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/10 mb-6 text-left">
-            <span className="text-3xl">📅</span>
-            <div>
-              <strong className="block text-white text-sm">Fecha Límite de Confirmación</strong>
-              <span className="text-xs text-white/80">{data.rsvpDeadline}</span>
-            </div>
-          </div>
-
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-4 rounded-full font-bold text-sm sm:text-base uppercase tracking-wider text-white shadow-xl flex items-center justify-center gap-3 transition-transform hover:scale-105 active:scale-95"
-            style={{
-              background: '#25D366',
-              boxShadow: '0 8px 30px rgba(37, 211, 102, 0.45)',
-            }}
-          >
-            <span className="text-2xl">💬</span>
-            <span>Confirmar por WhatsApp</span>
-          </a>
-
-          <p className="text-xs text-white/70 mt-4">
-            También puedes comunicarte directamente al {data.rsvpPhone}
-          </p>
-        </div>
-      </div>
-    </section>
+    />
   )
 }
 
@@ -824,8 +772,8 @@ export default function App() {
     }
   }, [])
 
-  // Universal music state
-  const { playing, toggle: toggleMusic, isMuted, toggleMute, needsGesture } = useMusic(data.musicUrl)
+  // Universal music state with intelligent video ducking
+  const { playing, toggle: toggleMusic, isMuted, toggleMute, needsGesture, pauseForVideo, resumeFromVideo } = useMusic(data.musicUrl)
 
   useScrollReveal()
 
@@ -834,21 +782,26 @@ export default function App() {
     saveWeddingData(newData)
   }
 
-  const handleAddGuestbookMessage = (
+  const handleAddGuestbookMessage = async (
     msg: Omit<GuestbookMessage, 'id' | 'timestamp' | 'likes'>
   ) => {
-    const newMessage: GuestbookMessage = {
-      ...msg,
-      id: `gb-${Date.now()}`,
-      timestamp: 'Justo ahora',
-      likes: 1,
-      isPinned: false,
-    }
+    // 1. Guardar directamente en la base de datos MySQL vía Backend
+    const backendRes = await submitGuestbookMessageToBackend(msg)
+    const newMessage: GuestbookMessage = backendRes.success && backendRes.data
+      ? backendRes.data
+      : {
+          ...msg,
+          id: `gb-${Date.now()}`,
+          timestamp: 'Justo ahora',
+          likes: 1,
+          isPinned: false,
+        }
     const updated = { ...data, guestbook: [newMessage, ...data.guestbook] }
     handleSaveData(updated)
   }
 
   const handleLikeMessage = (id: string) => {
+    likeGuestbookMessageInBackend(id).catch(() => {})
     const updated = {
       ...data,
       guestbook: data.guestbook.map(m =>
@@ -859,6 +812,7 @@ export default function App() {
   }
 
   const handleDeleteGuestbookMessage = (id: string) => {
+    deleteGuestbookMessageFromBackend(id).catch(() => {})
     const updated = {
       ...data,
       guestbook: data.guestbook.filter(m => m.id !== id),
@@ -925,9 +879,11 @@ export default function App() {
           videos={data.videos}
           defaultVideoId={data.youtubeVideoId}
           defaultTitle={data.videoTitle}
+          onVideoPlay={pauseForVideo}
+          onVideoPause={resumeFromVideo}
         />
         <ArtistsSection />
-        <ScheduleSection />
+        <DidacticScheduleSection schedule={data.schedule} wedding={data} />
         <LocationSection />
         <DressCodeGuide
           dressCode={data.dressCode}
@@ -954,6 +910,22 @@ export default function App() {
         onSaveData={handleSaveData}
         onDeleteGuestbookMessage={handleDeleteGuestbookMessage}
         onTogglePinMessage={handleTogglePinMessage}
+      />
+
+      {/* LIVE BACKEND & MYSQL STATUS BADGE */}
+      <BackendStatusBadge
+        onSyncRequested={() => {
+          loadWeddingDataAsync().then(fresh => {
+            if (fresh) setData(fresh)
+          })
+        }}
+      />
+
+      {/* LIVE WEDDING CHAT WIDGET */}
+      <WeddingLiveChat
+        messages={data.guestbook}
+        onSendMessage={handleAddGuestbookMessage}
+        onLikeMessage={handleLikeMessage}
       />
     </WeddingCtx.Provider>
   )

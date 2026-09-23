@@ -41,12 +41,12 @@ export const DEFAULT_WEDDING: WeddingData = {
   civilTime: "12:00 m.",
   receptionTime: "1:00 P.M.",
 
-  ceremonyVenue: "Iglesia Señor Qoyllority",
-  ceremonyAddress: "Parroquia Señor de Qoyllority",
+  ceremonyVenue: "Parroquia San Vicente de Paúl",
+  ceremonyAddress: "Parroquia San Vicente de Paúl (Señor de Qoyllority)",
   civilVenue: "Local El Golazo",
   receptionVenue: "Local 'El Golazo'",
   receptionAddress: "Av. Aeropuerto, Local 'El Golazo'",
-  googleMapsUrl: "https://maps.app.goo.gl/KqiGuqW1pdv8Ju1U8",
+  googleMapsUrl: "https://maps.app.goo.gl/C7oAJFYdgV5rAWte7",
   googleMapsReceptionUrl: "https://maps.app.goo.gl/nvWQWm5L1xiXoHED7",
   wazeUrl: "https://waze.com/ul?q=Av+Aeropuerto+El+Golazo",
 
@@ -177,13 +177,13 @@ export const DEFAULT_WEDDING: WeddingData = {
     }
   ],
 
-  // GALERÍA PRO
+  // GALERÍA PRO EXCLUSIVA (SIN DUPLICADOS)
   galleryPhotos: [
-    { id: "g-1", url: gallery1, caption: "El amor que crece cada día", category: "preboda", objectPosition: "center 20%" },
-    { id: "g-2", url: gallery2, caption: "Preparando nuestro gran día", category: "historia", objectPosition: "center center" },
-    { id: "g-3", url: gallery3, caption: "La bendición de nuestra familia", category: "civil", objectPosition: "center 20%" },
-    { id: "g-4", url: gallery4, caption: "Juntos hacia el altar", category: "preboda", objectPosition: "center 25%" },
-    { id: "g-5", url: coupleImg, caption: "Luis & Victoria para siempre", category: "historia", objectPosition: "center 15%" },
+    { id: "g-1", url: gallery1, caption: "Sesión Pre-Boda Oficial · Miradas de Amor en el Atardecer", category: "preboda", objectPosition: "center 20%" },
+    { id: "g-2", url: gallery2, caption: "Nuestros primeros pasos juntos · Siete años de complicidad", category: "historia", objectPosition: "center center" },
+    { id: "g-3", url: gallery3, caption: "La bendición de nuestros queridos padres y padrinos de honor", category: "civil", objectPosition: "center 20%" },
+    { id: "g-4", url: gallery4, caption: "Nuestra mayor bendición de Dios: nuestra amada Emma Antonela", category: "historia", objectPosition: "center 25%" },
+    { id: "g-5", url: coupleImg, caption: "Luis Quispe & Victoria Choque · El Gran Sí para Toda la Vida", category: "preboda", objectPosition: "center 15%" },
   ],
 
   // VIDEOS ESTELARES DE LA BODA (1: Publicidad/Anuncio, 2: Historia de Amor)
@@ -298,9 +298,6 @@ export const DEFAULT_WEDDING: WeddingData = {
   specialNote: "Te rogamos reservar los colores blanco y marfil exclusivamente para la novia. Los tonos lila, lavanda, morado suave y dorado son bienvenidos.",
 }
 
-// ── STORAGE KEY ───────────────────────────────────────────────
-const STORAGE_KEY = 'wedding_data_luis_victoria_v3'
-
 import { getStoredWeddingData, saveStoredWeddingData } from './utils/storageService'
 
 export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
@@ -319,15 +316,7 @@ export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
 }
 
 export function loadWeddingData(): WeddingData {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      const parsed = JSON.parse(stored)
-      return mergeWithDefaults(parsed)
-    }
-  } catch (err) {
-    console.warn("Could not load stored wedding data from localStorage, using defaults", err)
-  }
+  // Retorna los valores base por defecto mientras se sincroniza inmediatamente con el backend MySQL
   return DEFAULT_WEDDING
 }
 
@@ -338,22 +327,15 @@ export async function loadWeddingDataAsync(): Promise<WeddingData> {
       return mergeWithDefaults(asyncData)
     }
   } catch (err) {
-    console.warn("Could not load stored wedding data from IndexedDB, falling back", err)
+    console.warn("Aviso consultando base de datos backend:", err)
   }
-  return loadWeddingData()
+  return DEFAULT_WEDDING
 }
 
 export function saveWeddingData(data: WeddingData): void {
-  // 1. Guardar en IndexedDB de forma no bloqueante (soporta fotos pesadas sin límite de cuota)
+  // Persiste DIRECTAMENTE en la base de datos MySQL vía Backend NestJS
   saveStoredWeddingData(data).catch(err => {
-    console.error("Error al persistir en IndexedDB:", err)
+    console.error("Error al persistir en la base de datos MySQL:", err)
   })
-
-  // 2. Intentar guardar en localStorage si cabe
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  } catch {
-    // Si excede la cuota de localStorage por fotos pesadas, los datos quedan a salvo en IndexedDB
-  }
 }
 

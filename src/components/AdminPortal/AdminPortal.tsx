@@ -13,6 +13,7 @@ import {
   getCloudConfig,
   saveCloudConfig,
   uploadPhotoToBackend,
+  DEFAULT_BACKEND_API,
   type CloudConfig
 } from '../../utils/storageService'
 
@@ -24,9 +25,6 @@ interface AdminPortalProps {
   onDeleteGuestbookMessage: (id: string) => void
   onTogglePinMessage: (id: string) => void
 }
-
-const ADMIN_USER = 'admin'
-const ADMIN_PASS = 'qazwsx'
 
 export function AdminPortal({
   open,
@@ -42,6 +40,7 @@ export function AdminPortal({
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
   const [authError, setAuthError] = useState('')
+  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   // Working copy of data
   const [localData, setLocalData] = useState<WeddingData>(data)
@@ -87,20 +86,40 @@ export function AdminPortal({
 
   if (!open) return null
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (user === ADMIN_USER && pass === ADMIN_PASS) {
-      sessionStorage.setItem('wedding_admin_auth', '1')
-      setAuthenticated(true)
-      setAuthError('')
-    } else {
-      setAuthError('Credenciales incorrectas. Intenta nuevamente.')
+    setIsLoggingIn(true)
+    setAuthError('')
+    try {
+      // Validación estricta a través del backend NestJS
+      const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user, pass }),
+      })
+      const json = await res.json()
+      if (res.ok && json.success) {
+        sessionStorage.setItem('wedding_admin_auth', '1')
+        if (json.token) {
+          sessionStorage.setItem('wedding_admin_token', json.token)
+        }
+        setAuthenticated(true)
+        setAuthError('')
+        return
+      } else {
+        setAuthError(json.message || json.error || 'Credenciales no autorizadas por el servidor.')
+      }
+    } catch {
+      setAuthError(`No se pudo conectar con el servidor Backend NestJS (${DEFAULT_BACKEND_API}). Asegúrate de que esté encendido.`)
+    } finally {
+      setIsLoggingIn(false)
       setPass('')
     }
   }
 
   const handleLogout = () => {
     sessionStorage.removeItem('wedding_admin_auth')
+    sessionStorage.removeItem('wedding_admin_token')
     setAuthenticated(false)
   }
 
@@ -315,13 +334,14 @@ export function AdminPortal({
 
             <button
               type="submit"
-              className="btn-gold w-full justify-center py-3.5 mt-2"
+              disabled={isLoggingIn}
+              className="btn-gold w-full justify-center py-3.5 mt-2 disabled:opacity-50 cursor-pointer"
             >
-              Ingresar al Portal
+              {isLoggingIn ? 'Validando con el backend...' : 'Ingresar al Portal'}
             </button>
 
             <p className="text-[0.68rem] text-stone-400 text-center mt-2">
-              Credenciales predeterminadas: admin / qazwsx
+              Validado directamente en la base de datos MySQL (Backend NestJS)
             </p>
           </form>
         </div>

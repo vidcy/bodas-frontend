@@ -117,7 +117,29 @@ export function useMusic(src: string) {
     setIsMuted(!isMuted)
   }
 
-  return { playing, toggle, isMuted, toggleMute, needsGesture }
+  const wasPlayingBeforeVideoRef = useRef(false)
+
+  const pauseForVideo = () => {
+    if (audioRef.current && !audioRef.current.paused) {
+      wasPlayingBeforeVideoRef.current = true
+      audioRef.current.pause()
+      setPlaying(false)
+    }
+  }
+
+  const resumeFromVideo = () => {
+    if (audioRef.current && wasPlayingBeforeVideoRef.current) {
+      audioRef.current
+        .play()
+        .then(() => {
+          setPlaying(true)
+        })
+        .catch(() => {})
+      wasPlayingBeforeVideoRef.current = false
+    }
+  }
+
+  return { playing, toggle, isMuted, toggleMute, needsGesture, pauseForVideo, resumeFromVideo }
 }
 
 export { useCountdown }
