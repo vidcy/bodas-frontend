@@ -8,7 +8,66 @@ const CLOUD_CONFIG_KEY = 'wedding_cloud_config'
 
 // URL base del backend de NestJS (configurable mediante .env de Vite)
 export const DEFAULT_BACKEND_API =
-  (import.meta as any).env?.VITE_API_URL || 'http://localhost:3000/api'
+  (import.meta as any).env?.VITE_API_URL ||
+  (typeof window !== 'undefined' &&
+  window.location.hostname !== 'localhost' &&
+  window.location.hostname !== '127.0.0.1'
+    ? `${window.location.origin}/api`
+    : 'http://localhost:3000/api')
+
+export const DO_SPACES_CDN_BASE =
+  'https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas'
+
+/**
+ * Transforma URLs locales o inseguras (como http://localhost:3000/uploads/...)
+ * a la CDN pública y segura con HTTPS de DigitalOcean Spaces.
+ */
+export function sanitizeMediaUrl(url?: string | null): string {
+  if (!url) return ''
+  if (typeof url !== 'string') return url
+
+  // Si la URL apunta a localhost:3000/uploads o a /uploads/boda-
+  if (url.includes('localhost:3000/uploads/') || url.includes('/uploads/boda-')) {
+    const filename = url.split('/uploads/').pop()
+    if (filename) {
+      return `${DO_SPACES_CDN_BASE}/${filename}`
+    }
+  }
+
+  return url
+}
+
+/**
+ * Limpia y asegura que todas las fotos de la boda utilicen HTTPS y CDN de Spaces
+ */
+export function sanitizeWeddingData(data: WeddingData): WeddingData {
+  if (!data || typeof data !== 'object') return data
+
+  return {
+    ...data,
+    heroBannerUrl: sanitizeMediaUrl(data.heroBannerUrl),
+    mainCouplePhoto: sanitizeMediaUrl(data.mainCouplePhoto),
+    yapeQrUrl: data.yapeQrUrl ? sanitizeMediaUrl(data.yapeQrUrl) : data.yapeQrUrl,
+    galleryPhotos: Array.isArray(data.galleryPhotos)
+      ? data.galleryPhotos.map((p) => ({
+          ...p,
+          url: sanitizeMediaUrl(p.url),
+        }))
+      : data.galleryPhotos,
+    stories: Array.isArray(data.stories)
+      ? data.stories.map((s) => ({
+          ...s,
+          mediaUrl: sanitizeMediaUrl(s.mediaUrl),
+        }))
+      : data.stories,
+    videos: Array.isArray(data.videos)
+      ? data.videos.map((v) => ({
+          ...v,
+          thumbnail: v.thumbnail ? sanitizeMediaUrl(v.thumbnail) : v.thumbnail,
+        }))
+      : data.videos,
+  }
+}
 
 export interface CloudConfig {
   enabled: boolean
@@ -200,7 +259,7 @@ export async function getStoredWeddingData(): Promise<WeddingData | null> {
           try {
             localStorage.removeItem(LOCAL_STORAGE_KEY)
           } catch {}
-          return actualData as WeddingData
+          return sanitizeWeddingData(actualData as WeddingData)
         }
       }
     }
@@ -211,7 +270,7 @@ export async function getStoredWeddingData(): Promise<WeddingData | null> {
   // Si el backend no responde, intentar IndexedDB temporalmente
   try {
     const localDbData = await getFromIndexedDB()
-    if (localDbData) return localDbData
+    if (localDbData) return sanitizeWeddingData(localDbData)
   } catch {}
 
   return null
@@ -228,7 +287,10 @@ function getFromIndexedDB(): Promise<WeddingData | null> {
       const store = tx.objectStore(STORE_NAME)
       const request = store.get(DATA_KEY)
 
-      request.onsuccess = () => resolve(request.result || null)
+      request.onsuccess = () => {
+        const val = request.result || null
+        resolve(val ? sanitizeWeddingData(val) : null)
+      }
       request.onerror = () => reject(request.error)
     } catch (e) {
       reject(e)
@@ -245,7 +307,8 @@ function saveToIndexedDB(data: WeddingData): Promise<void> {
       const db = await openDB()
       const tx = db.transaction(STORE_NAME, 'readwrite')
       const store = tx.objectStore(STORE_NAME)
-      const request = store.put(data, DATA_KEY)
+      const sanitized = sanitizeWeddingData(data)
+      const request = store.put(sanitized, DATA_KEY)
 
       request.onsuccess = () => resolve()
       request.onerror = () => reject(request.error)
@@ -280,8 +343,9 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
     if (res && res.ok) {
       const json = await res.json()
       if (json && json.url) {
-        console.log('✅ Foto subida exitosamente al servidor:', json.url)
-        return json.url as string
+        const safeUrl = sanitizeMediaUrl(json.url as string)
+        console.log('✅ Foto subida exitosamente al servidor:', safeUrl)
+        return safeUrl
       }
     }
   } catch (err: any) {
@@ -295,6 +359,7 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
  */
 export async function saveStoredWeddingData(data: WeddingData): Promise<{ success: boolean; cloudSynced?: boolean; error?: string }> {
   let cloudSynced = false
+  const sanitizedData = sanitizeWeddingData(data)
 
   try {
     // 1. Intentar a través de DEFAULT_BACKEND_API/wedding
@@ -303,7 +368,7 @@ export async function saveStoredWeddingData(data: WeddingData): Promise<{ succes
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(sanitizedData)
     }).catch(() => null)
 
     // 2. Fallback a través del proxy local /api/wedding
@@ -313,7 +378,7 @@ export async function saveStoredWeddingData(data: WeddingData): Promise<{ succes
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(sanitizedData)
       }).catch(() => null)
     }
 

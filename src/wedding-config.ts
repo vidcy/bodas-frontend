@@ -298,10 +298,10 @@ export const DEFAULT_WEDDING: WeddingData = {
   specialNote: "Te rogamos reservar los colores blanco y marfil exclusivamente para la novia. Los tonos lila, lavanda, morado suave y dorado son bienvenidos.",
 }
 
-import { getStoredWeddingData, saveStoredWeddingData } from './utils/storageService'
+import { getStoredWeddingData, saveStoredWeddingData, sanitizeWeddingData } from './utils/storageService'
 
 export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
-  return {
+  const merged: WeddingData = {
     ...DEFAULT_WEDDING,
     ...parsed,
     loveStory: parsed.loveStory?.length ? parsed.loveStory : DEFAULT_WEDDING.loveStory,
@@ -313,6 +313,7 @@ export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
     announcement: parsed.announcement ? parsed.announcement : DEFAULT_WEDDING.announcement,
     rsvpList: parsed.rsvpList?.length ? parsed.rsvpList : DEFAULT_WEDDING.rsvpList,
   }
+  return sanitizeWeddingData(merged)
 }
 
 export function loadWeddingData(): WeddingData {
