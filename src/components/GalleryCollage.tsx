@@ -89,10 +89,12 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
     if (sliderTrackRef.current && total > 0) {
       const activeWindow = sliderTrackRef.current.children[currentIndex] as HTMLElement
       if (activeWindow) {
-        activeWindow.scrollIntoView({
+        const container = sliderTrackRef.current
+        const scrollTarget =
+          activeWindow.offsetLeft - container.offsetWidth / 2 + activeWindow.offsetWidth / 2
+        container.scrollTo({
+          left: Math.max(0, scrollTarget),
           behavior: 'smooth',
-          inline: 'center',
-          block: 'nearest',
         })
       }
     }

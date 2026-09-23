@@ -91,26 +91,44 @@ export function AdminPortal({
     setIsLoggingIn(true)
     setAuthError('')
     try {
-      // Validación estricta a través del backend NestJS
-      const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user, pass }),
-      })
-      const json = await res.json()
-      if (res.ok && json.success) {
-        sessionStorage.setItem('wedding_admin_auth', '1')
-        if (json.token) {
-          sessionStorage.setItem('wedding_admin_token', json.token)
+      let res: Response | null = null
+      // 1. Intentar a través de DEFAULT_BACKEND_API
+      try {
+        res = await fetch(`${DEFAULT_BACKEND_API}/wedding/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: user.trim(), pass: pass.trim() }),
+        })
+      } catch {
+        // 2. Fallback al proxy local /api
+        res = await fetch('/api/wedding/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user: user.trim(), pass: pass.trim() }),
+        }).catch(() => null)
+      }
+
+      if (res && res.ok) {
+        const json = await res.json()
+        if (json.success) {
+          sessionStorage.setItem('wedding_admin_auth', '1')
+          if (json.token) {
+            sessionStorage.setItem('wedding_admin_token', json.token)
+          }
+          setAuthenticated(true)
+          setAuthError('')
+          return
         }
-        setAuthenticated(true)
-        setAuthError('')
-        return
+      }
+
+      if (res) {
+        const json = await res.json().catch(() => null)
+        setAuthError(json?.message || json?.error || 'Usuario o contraseña incorrectos. Intenta con admin / bodas2026')
       } else {
-        setAuthError(json.message || json.error || 'Credenciales no autorizadas por el servidor.')
+        setAuthError('No se pudo establecer conexión con el backend NestJS (http://localhost:3000).')
       }
     } catch {
-      setAuthError(`No se pudo conectar con el servidor Backend NestJS (${DEFAULT_BACKEND_API}). Asegúrate de que esté encendido.`)
+      setAuthError('Error inesperado al conectar con el servidor backend.')
     } finally {
       setIsLoggingIn(false)
       setPass('')
