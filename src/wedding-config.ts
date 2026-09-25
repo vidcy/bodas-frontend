@@ -1,12 +1,6 @@
 import type { WeddingData } from './types/wedding'
 export type { WeddingData }
 
-import coupleImg from './assets/couple.jpg'
-import gallery1 from './assets/gallery1.jpg'
-import gallery2 from './assets/gallery2.jpg'
-import gallery3 from './assets/gallery3.jpg'
-import gallery4 from './assets/gallery4.jpg'
-
 export const DEFAULT_WEDDING: WeddingData = {
   groomName: "Luis",
   brideName: "Victoria",
@@ -131,12 +125,12 @@ export const DEFAULT_WEDDING: WeddingData = {
     }
   ],
 
-  // HISTORIAS INTERACTIVAS TIPO INSTAGRAM
+  // HISTORIAS INTERACTIVAS TIPO INSTAGRAM (100% DIGITALOCEAN SPACES)
   stories: [
     {
       id: "story-1",
       title: "Luis & Victoria",
-      mediaUrl: coupleImg,
+      mediaUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790213472408-klgyh0.jpeg",
       type: "image",
       caption: "¡Nos casamos! Unidos por el amor y la bendición de Dios 💕",
       timestamp: "Hace 1 hora",
@@ -146,17 +140,17 @@ export const DEFAULT_WEDDING: WeddingData = {
     {
       id: "story-2",
       title: "Nuestra Emma",
-      mediaUrl: gallery1,
+      mediaUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142992416-288782306.jpeg",
       type: "image",
       caption: "Nuestra hijita Emma Antonela, la luz de nuestras vidas 🌸",
       timestamp: "Hace 3 horas",
       duration: 5,
-      objectPosition: "center 25%"
+      objectPosition: "center center"
     },
     {
       id: "story-3",
       title: "Los Aros",
-      mediaUrl: gallery2,
+      mediaUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790143000710-862090744.jpeg",
       type: "image",
       caption: "Símbolo de nuestra promesa eterna 💍",
       timestamp: "Ayer",
@@ -166,22 +160,29 @@ export const DEFAULT_WEDDING: WeddingData = {
     {
       id: "story-4",
       title: "Familia Unida",
-      mediaUrl: gallery3,
+      mediaUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142978888-109778035.jpeg",
       type: "image",
       caption: "Gracias infinitas a nuestros queridos padres y padrinos 🥂",
       timestamp: "Hace 2 días",
       duration: 5,
-      objectPosition: "center 20%"
+      objectPosition: "center center"
     }
   ],
 
-  // GALERÍA PRO EXCLUSIVA (SIN DUPLICADOS)
+  // GALERÍA PRO EXCLUSIVA EN DIGITALOCEAN SPACES (12 MEMORIAS REALES)
   galleryPhotos: [
-    { id: "g-1", url: gallery1, caption: "Sesión Pre-Boda Oficial · Miradas de Amor en el Atardecer", category: "preboda", objectPosition: "center 20%" },
-    { id: "g-2", url: gallery2, caption: "Nuestros primeros pasos juntos · Siete años de complicidad", category: "historia", objectPosition: "center center" },
-    { id: "g-3", url: gallery3, caption: "La bendición de nuestros queridos padres y padrinos de honor", category: "civil", objectPosition: "center 20%" },
-    { id: "g-4", url: gallery4, caption: "Nuestra mayor bendición de Dios: nuestra amada Emma Antonela", category: "historia", objectPosition: "center 25%" },
-    { id: "g-5", url: coupleImg, caption: "Luis Quispe & Victoria Choque · El Gran Sí para Toda la Vida", category: "preboda", objectPosition: "center 15%" },
+    { id: "g-1", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790133844716-426374140.jpeg", caption: "Sesión Pre-Boda Oficial · Miradas de Amor en el Atardecer", category: "preboda", objectPosition: "center center" },
+    { id: "g-2", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790133819277-600993325.jpeg", caption: "Nuestros primeros pasos juntos · Siete años de complicidad", category: "historia", objectPosition: "center center" },
+    { id: "g-3", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142754256-104422292.jpeg", caption: "La bendición de nuestros queridos padres y padrinos de honor", category: "civil", objectPosition: "center center" },
+    { id: "g-4", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790133964931-382160122.jpeg", caption: "Nuestra mayor bendición de Dios: nuestra amada Emma Antonela", category: "historia", objectPosition: "center center" },
+    { id: "g-5", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142938740-378912026.jpeg", caption: "Luis Quispe & Victoria Choque · El Gran Sí para Toda la Vida", category: "preboda", objectPosition: "center center" },
+    { id: "g-6", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790134323471-746778510.jpeg", caption: "Caminando juntos hacia el altar", category: "civil", objectPosition: "center center" },
+    { id: "g-7", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790152536681-988840550.jpeg", caption: "Amor verdadero e incondicional", category: "historia", objectPosition: "center center" },
+    { id: "g-8", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142983738-773292242.jpeg", caption: "Sonrisas y momentos inolvidables", category: "preboda", objectPosition: "center center" },
+    { id: "g-9", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790134294633-805017526.jpeg", caption: "Familia bendecida por Dios", category: "historia", objectPosition: "center center" },
+    { id: "g-10", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142992416-288782306.jpeg", caption: "Dulzura y complicidad", category: "preboda", objectPosition: "center center" },
+    { id: "g-11", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790143000710-862090744.jpeg", caption: "Símbolo de nuestra promesa eterna", category: "historia", objectPosition: "center center" },
+    { id: "g-12", url: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-1790142978888-109778035.jpeg", caption: "Unidos para siempre ante Dios", category: "preboda", objectPosition: "center center" },
   ],
 
   // VIDEOS ESTELARES DE LA BODA (1: Publicidad/Anuncio, 2: Historia de Amor)

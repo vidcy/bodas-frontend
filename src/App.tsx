@@ -24,9 +24,8 @@ import { RsvpFormSection } from './components/RsvpFormSection'
 import { BackendStatusBadge } from './components/BackendStatusBadge'
 import { DidacticScheduleSection } from './components/DidacticScheduleSection'
 import { WeddingLiveChat } from './components/WeddingLiveChat'
-import { getGoogleCalendarUrl, downloadIcsCalendar } from './utils/calendarHelper'
 import { SafeImage } from './components/SafeImage'
-import coupleImg from './assets/couple.jpg'
+import { getGoogleCalendarUrl, downloadIcsCalendar } from './utils/calendarHelper'
 import { likeGuestbookMessageInBackend, deleteGuestbookMessageFromBackend, submitGuestbookMessageToBackend } from './utils/storageService'
 
 // ── WEDDING DATA CONTEXT ─────────────────────────────────────
@@ -97,21 +96,21 @@ function HeroSection() {
 
   return (
     <section className="relative w-full min-h-screen flex items-center justify-center overflow-hidden pt-44 sm:pt-48 md:pt-52 lg:pt-48 pb-20 px-4 sm:px-6 lg:px-8">
-      {/* AMBIENT BG IMAGE */}
+      {/* AMBIENT BG IMAGE: CLARA, VIBRANTE Y PROTAGÓNICA */}
       <div
-        className="absolute inset-0 bg-cover bg-center animate-hero-zoom opacity-45"
+        className="absolute inset-0 bg-cover bg-center animate-hero-zoom opacity-80 sm:opacity-85"
         style={{
           backgroundImage: `url(${data.heroBannerUrl || data.mainCouplePhoto})`,
           objectPosition: data.heroPhotoPosition || 'center 30%',
         }}
       />
 
-      {/* RADIANT AMBIENT GRADIENT VIVO Y LUMINOSO */}
+      {/* OVERLAY CINEMATOGRÁFICO LIGERO (SIN MANCHA ROJIZA PESADA) */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(circle at 80% 25%, rgba(251, 191, 36, 0.45) 0%, transparent 55%), radial-gradient(circle at 20% 75%, rgba(244, 114, 182, 0.4) 0%, transparent 55%), radial-gradient(circle at 50% 50%, rgba(192, 132, 252, 0.3) 0%, transparent 60%), linear-gradient(135deg, rgba(28, 8, 38, 0.88) 0%, rgba(58, 14, 72, 0.76) 50%, rgba(24, 7, 34, 0.9) 100%)',
+            'radial-gradient(circle at 50% 35%, rgba(0, 0, 0, 0.12) 0%, rgba(15, 5, 25, 0.45) 65%, rgba(12, 4, 20, 0.85) 100%), linear-gradient(to bottom, rgba(12, 4, 18, 0.35) 0%, transparent 40%, rgba(12, 4, 20, 0.85) 100%)',
         }}
       />
 
@@ -217,7 +216,6 @@ function HeroSection() {
               <div className="relative h-[440px] sm:h-[500px] w-full rounded-[28px] overflow-hidden bg-black/40">
                 <SafeImage
                   src={data.mainCouplePhoto}
-                  fallbackSrc={coupleImg}
                   alt={`${data.groomName} y ${data.brideName}`}
                   style={{ objectPosition: data.couplePhotoPosition || 'center 20%' }}
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
@@ -439,47 +437,74 @@ function ArtistsSection() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {data.artists.map((artist, idx) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {(data.artists || []).map((artist, idx) => (
             <div
               key={idx}
-              className="glass-panel-dark rounded-3xl overflow-hidden reveal group hover:-translate-y-2 transition-all duration-300 flex flex-col"
+              className="glass-panel-dark rounded-3xl overflow-hidden reveal group hover:-translate-y-2 transition-all duration-300 flex flex-col border border-amber-500/20 shadow-xl shadow-purple-950/40"
             >
-              <div className="relative h-48 sm:h-52 bg-gradient-to-tr from-purple-900/60 via-amber-900/50 to-stone-900 flex items-center justify-center overflow-hidden">
+              <div className="relative h-52 sm:h-56 bg-gradient-to-tr from-purple-950 via-amber-950/40 to-stone-900 flex items-center justify-center overflow-hidden">
                 {artist.photo ? (
-                  <img
+                  <SafeImage
                     src={artist.photo}
                     alt={artist.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                 ) : (
-                  <span className="text-6xl">
-                    {['🎺', '🎸', '🎧'][idx % 3]}
-                  </span>
+                  <div className="flex flex-col items-center justify-center text-center p-4">
+                    <span className="text-5xl mb-2">
+                      {['🎺', '🎸', '🎷', '🎤', '🎻'][idx % 5]}
+                    </span>
+                    <span className="text-[0.65rem] uppercase tracking-widest text-amber-300/80 font-bold">
+                      {artist.genre || 'Música en Vivo'}
+                    </span>
+                  </div>
                 )}
                 {artist.setTime && (
-                  <span className="absolute top-3 right-3 text-[0.65rem] font-bold bg-black/60 backdrop-blur-md text-amber-300 px-3 py-1 rounded-full border border-white/20">
+                  <span className="absolute top-3 right-3 text-[0.68rem] font-bold bg-black/75 backdrop-blur-md text-amber-300 px-3 py-1.5 rounded-full border border-amber-400/40 shadow-lg flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     ⏰ {artist.setTime}
+                  </span>
+                )}
+                {artist.genre && (
+                  <span className="absolute bottom-3 left-3 text-[0.62rem] font-extrabold uppercase tracking-wider bg-purple-950/80 backdrop-blur-md text-purple-200 px-2.5 py-1 rounded-lg border border-purple-400/30">
+                    {artist.genre}
                   </span>
                 )}
               </div>
 
-              <div className="p-6 flex-1 flex flex-col justify-between">
+              <div className="p-6 flex-1 flex flex-col justify-between bg-gradient-to-b from-stone-900/90 to-stone-950/95">
                 <div>
-                  <h3 className="font-display text-2xl font-bold text-white mb-1">
+                  <h3 className="font-display text-2xl font-bold text-white mb-2 group-hover:text-amber-300 transition-colors">
                     {artist.name}
                   </h3>
-                  <p className="text-xs font-semibold text-purple-300 mb-3 uppercase tracking-wider">
-                    {artist.genre}
-                  </p>
-                  <p className="text-xs text-white/75 leading-relaxed">
+                  <p className="text-xs text-stone-300/85 leading-relaxed line-clamp-3">
                     {artist.description}
                   </p>
                 </div>
                 {artist.instagramHandle && (
-                  <span className="text-[0.7rem] text-amber-300 font-bold mt-4 block">
-                    📸 {artist.instagramHandle}
-                  </span>
+                  <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between">
+                    <a
+                      href={
+                        artist.instagramHandle.startsWith('http')
+                          ? artist.instagramHandle
+                          : `https://instagram.com/${artist.instagramHandle.replace('@', '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200 transition-colors"
+                    >
+                      <span>📸</span>
+                      <span>
+                        {artist.instagramHandle.startsWith('@')
+                          ? artist.instagramHandle
+                          : `@${artist.instagramHandle.replace('https://instagram.com/', '')}`}
+                      </span>
+                    </a>
+                    <span className="text-[0.65rem] text-stone-400 uppercase tracking-widest font-semibold">
+                      Presentación Especial
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

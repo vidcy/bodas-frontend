@@ -424,6 +424,27 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
 }
 
 /**
+ * Elimina una foto física de DigitalOcean Spaces a través del Backend
+ * para mantener el bucket limpio y no acumular archivos basura
+ */
+export async function deletePhotoFromBackend(fileUrl: string): Promise<boolean> {
+  if (!fileUrl) return false
+  try {
+    const apiUrl = getBackendApiUrl()
+    const res = await fetch(`${apiUrl}/upload?url=${encodeURIComponent(fileUrl)}`, {
+      method: 'DELETE',
+    })
+    if (res.ok) {
+      console.log('🗑️ Archivo eliminado exitosamente de DigitalOcean Spaces:', fileUrl)
+      return true
+    }
+  } catch (err: any) {
+    console.warn('Aviso al eliminar archivo de la nube:', err.message)
+  }
+  return false
+}
+
+/**
  * Guarda los datos de la boda DIRECTAMENTE en el Backend NestJS y la base de datos MySQL
  */
 export async function saveStoredWeddingData(data: WeddingData): Promise<{ success: boolean; cloudSynced?: boolean; error?: string }> {

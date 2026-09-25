@@ -3,7 +3,8 @@ import type {
   WeddingData,
   InteractiveStory,
   VideoItem,
-  RsvpGuest
+  RsvpGuest,
+  Artist
 } from '../../types/wedding'
 import { optimizeImage, getBase64SizeKb } from '../../utils/imageOptimizer'
 import {
@@ -13,6 +14,7 @@ import {
   getCloudConfig,
   saveCloudConfig,
   uploadPhotoToBackend,
+  deletePhotoFromBackend,
   saveStoredWeddingData,
   getBackendApiUrl,
   setCustomBackendApiUrl,
@@ -48,7 +50,7 @@ export function AdminPortal({
   // Working copy of data
   const [localData, setLocalData] = useState<WeddingData>(data)
   const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'comunicados' | 'banners' | 'stories' | 'videos' | 'galeria' | 'foro' | 'rsvp' | 'general' | 'respaldos'
+    'dashboard' | 'comunicados' | 'banners' | 'stories' | 'videos' | 'artistas' | 'galeria' | 'foro' | 'rsvp' | 'general' | 'respaldos'
   >('dashboard')
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('')
@@ -95,6 +97,16 @@ export function AdminPortal({
   const [newGuestName, setNewGuestName] = useState('')
   const [newGuestCount, setNewGuestCount] = useState(1)
   const [newGuestPhone, setNewGuestPhone] = useState('')
+
+  // Artist manager state
+  const [editingArtistIndex, setEditingArtistIndex] = useState<number | null>(null)
+  const [artistName, setArtistName] = useState('')
+  const [artistGenre, setArtistGenre] = useState('')
+  const [artistDescription, setArtistDescription] = useState('')
+  const [artistPhoto, setArtistPhoto] = useState('')
+  const [artistInstagram, setArtistInstagram] = useState('')
+  const [artistSetTime, setArtistSetTime] = useState('')
+  const artistFileRef = useRef<HTMLInputElement>(null)
 
   // Backend connection state
   const [customBackendUrl, setCustomBackendUrl] = useState(() => getBackendApiUrl())
@@ -321,6 +333,103 @@ export function AdminPortal({
     handleSave(updated)
     setNewPhotoUrl('')
     setNewPhotoCaption('')
+  }
+
+  // Artist CRUD helpers
+  const handleEditArtist = (index: number) => {
+    const artist = (localData.artists || [])[index]
+    if (!artist) return
+    setEditingArtistIndex(index)
+    setArtistName(artist.name || '')
+    setArtistGenre(artist.genre || '')
+    setArtistDescription(artist.description || '')
+    setArtistPhoto(artist.photo || '')
+    setArtistInstagram(artist.instagramHandle || '')
+    setArtistSetTime(artist.setTime || '')
+  }
+
+  const handleCancelArtistEdit = () => {
+    setEditingArtistIndex(null)
+    setArtistName('')
+    setArtistGenre('')
+    setArtistDescription('')
+    setArtistPhoto('')
+    setArtistInstagram('')
+    setArtistSetTime('')
+  }
+
+  const handleSaveArtist = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    if (!artistName.trim()) {
+      alert('Por favor ingresa al menos el nombre de la agrupación o artista.')
+      return
+    }
+
+    const currentArtists = [...(localData.artists || [])]
+    const newArtist: Artist = {
+      name: artistName.trim(),
+      genre: artistGenre.trim() || 'Música en Vivo',
+      description: artistDescription.trim(),
+      photo: artistPhoto.trim() || undefined,
+      instagramHandle: artistInstagram.trim() || undefined,
+      setTime: artistSetTime.trim() || undefined,
+    }
+
+    let updatedArtists: Artist[]
+    if (editingArtistIndex !== null && editingArtistIndex >= 0 && editingArtistIndex < currentArtists.length) {
+      const oldPhoto = currentArtists[editingArtistIndex].photo
+      if (oldPhoto && oldPhoto !== newArtist.photo) {
+        deletePhotoFromBackend(oldPhoto).catch(console.error)
+      }
+      currentArtists[editingArtistIndex] = newArtist
+      updatedArtists = currentArtists
+    } else {
+      updatedArtists = [...currentArtists, newArtist]
+    }
+
+    const updated = { ...localData, artists: updatedArtists }
+    setLocalData(updated)
+    await handleSave(updated)
+    handleCancelArtistEdit()
+  }
+
+  const handleDeleteArtist = async (index: number) => {
+    const currentArtists = [...(localData.artists || [])]
+    const target = currentArtists[index]
+    if (!target) return
+
+    if (!window.confirm(`¿Estás seguro de eliminar a "${target.name}"?`)) {
+      return
+    }
+
+    if (target.photo) {
+      deletePhotoFromBackend(target.photo).catch(console.error)
+    }
+
+    const updatedArtists = currentArtists.filter((_, idx) => idx !== index)
+    const updated = { ...localData, artists: updatedArtists }
+    setLocalData(updated)
+    await handleSave(updated)
+    if (editingArtistIndex === index) {
+      handleCancelArtistEdit()
+    }
+  }
+
+  const handleMoveArtist = async (index: number, direction: 'up' | 'down') => {
+    const currentArtists = [...(localData.artists || [])]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= currentArtists.length) return
+
+    const temp = currentArtists[index]
+    currentArtists[index] = currentArtists[targetIndex]
+    currentArtists[targetIndex] = temp
+
+    const updated = { ...localData, artists: currentArtists }
+    setLocalData(updated)
+    await handleSave(updated)
+    if (editingArtistIndex === index) {
+      setEditingArtistIndex(targetIndex)
+    }
   }
 
   // Add manual RSVP
@@ -567,6 +676,7 @@ export function AdminPortal({
                 { id: 'banners', label: 'Banners & Fondos', icon: '🖼️' },
                 { id: 'stories', label: 'Historias (Stories)', icon: '📱' },
                 { id: 'videos', label: 'Sala de Videos', icon: '🎬' },
+                { id: 'artistas', label: 'Artistas & Grupos', icon: '🎤' },
                 { id: 'galeria', label: 'Galería & Collage', icon: '📸' },
                 { id: 'foro', label: 'Moderación de Foro', icon: '💬' },
                 { id: 'rsvp', label: 'Invitados & Asistencia', icon: '👥' },
@@ -576,11 +686,10 @@ export function AdminPortal({
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                  className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl text-left text-xs font-bold transition-all flex-shrink-0 md:w-full cursor-pointer ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-amber-400 via-pink-400 to-rose-400 text-white shadow-md shadow-pink-300/30'
-                      : 'text-stone-600 hover:bg-pink-50/70 hover:text-stone-900'
-                  }`}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl text-left text-xs font-bold transition-all flex-shrink-0 md:w-full cursor-pointer ${activeTab === tab.id
+                    ? 'bg-gradient-to-r from-amber-400 via-pink-400 to-rose-400 text-white shadow-md shadow-pink-300/30'
+                    : 'text-stone-600 hover:bg-pink-50/70 hover:text-stone-900'
+                    }`}
                 >
                   <span className="text-base">{tab.icon}</span>
                   <span className="truncate">{tab.label}</span>
@@ -777,13 +886,31 @@ export function AdminPortal({
                     </p>
 
                     {localData.heroBannerUrl && (
-                      <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200">
+                      <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200 group">
                         <SafeImage
                           src={localData.heroBannerUrl}
                           alt="Hero Banner"
                           style={{ objectPosition: localData.heroPhotoPosition || 'center 30%' }}
                           className="w-full h-full object-cover transition-all"
                         />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('¿Eliminar permanentemente la imagen de portada de DigitalOcean Spaces para liberar espacio?')) return
+                            const oldUrl = localData.heroBannerUrl
+                            const updated = { ...localData, heroBannerUrl: '' }
+                            setLocalData(updated)
+                            handleSave(updated)
+                            if (oldUrl && oldUrl.includes('digitaloceanspaces.com')) {
+                              await deletePhotoFromBackend(oldUrl)
+                            }
+                          }}
+                          className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-red-600/95 hover:bg-red-700 text-white text-xs font-bold shadow-lg cursor-pointer transition-all flex items-center gap-1.5 backdrop-blur-xs"
+                          title="Eliminar archivo del bucket de DigitalOcean Spaces"
+                        >
+                          <span>🗑️</span>
+                          <span>Eliminar de Spaces</span>
+                        </button>
                       </div>
                     )}
 
@@ -802,11 +929,10 @@ export function AdminPortal({
                             key={pos.val}
                             type="button"
                             onClick={() => setLocalData(prev => ({ ...prev, heroPhotoPosition: pos.val }))}
-                            className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                              localData.heroPhotoPosition === pos.val
-                                ? 'bg-purple-600 text-white shadow-sm'
-                                : 'bg-white text-stone-700 hover:bg-purple-50 border border-stone-200'
-                            }`}
+                            className={`px-3 py-1 rounded-lg font-semibold transition-all ${localData.heroPhotoPosition === pos.val
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-white text-stone-700 hover:bg-purple-50 border border-stone-200'
+                              }`}
                           >
                             {pos.label}
                           </button>
@@ -830,10 +956,14 @@ export function AdminPortal({
                         accept="image/*"
                         className="hidden"
                         onChange={e =>
-                          handleFileUpload(e, url => {
+                          handleFileUpload(e, async url => {
+                            const oldUrl = localData.heroBannerUrl
                             const updated = { ...localData, heroBannerUrl: url }
                             setLocalData(updated)
                             handleSave(updated)
+                            if (oldUrl && oldUrl !== url && oldUrl.includes('digitaloceanspaces.com')) {
+                              await deletePhotoFromBackend(oldUrl)
+                            }
                           })
                         }
                       />
@@ -861,13 +991,31 @@ export function AdminPortal({
                     </p>
 
                     {localData.mainCouplePhoto && (
-                      <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200">
+                      <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200 group">
                         <SafeImage
                           src={localData.mainCouplePhoto}
                           alt="Couple"
                           style={{ objectPosition: localData.couplePhotoPosition || 'center 20%' }}
                           className="w-full h-full object-cover transition-all"
                         />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm('¿Eliminar permanentemente la foto oficial de DigitalOcean Spaces para liberar espacio?')) return
+                            const oldUrl = localData.mainCouplePhoto
+                            const updated = { ...localData, mainCouplePhoto: '' }
+                            setLocalData(updated)
+                            handleSave(updated)
+                            if (oldUrl && oldUrl.includes('digitaloceanspaces.com')) {
+                              await deletePhotoFromBackend(oldUrl)
+                            }
+                          }}
+                          className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-red-600/95 hover:bg-red-700 text-white text-xs font-bold shadow-lg cursor-pointer transition-all flex items-center gap-1.5 backdrop-blur-xs"
+                          title="Eliminar archivo del bucket de DigitalOcean Spaces"
+                        >
+                          <span>🗑️</span>
+                          <span>Eliminar de Spaces</span>
+                        </button>
                       </div>
                     )}
 
@@ -886,11 +1034,10 @@ export function AdminPortal({
                             key={pos.val}
                             type="button"
                             onClick={() => setLocalData(prev => ({ ...prev, couplePhotoPosition: pos.val }))}
-                            className={`px-3 py-1 rounded-lg font-semibold transition-all ${
-                              localData.couplePhotoPosition === pos.val
-                                ? 'bg-purple-600 text-white shadow-sm'
-                                : 'bg-white text-stone-700 hover:bg-purple-50 border border-stone-200'
-                            }`}
+                            className={`px-3 py-1 rounded-lg font-semibold transition-all ${localData.couplePhotoPosition === pos.val
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-white text-stone-700 hover:bg-purple-50 border border-stone-200'
+                              }`}
                           >
                             {pos.label}
                           </button>
@@ -904,7 +1051,7 @@ export function AdminPortal({
                     >
                       <span className="text-2xl block">💑</span>
                       <span className="text-xs font-bold text-pink-600">
-                        Subir foto oficial de los novios
+                        Subir foto oficial a DigitalOcean Spaces
                       </span>
                     </div>
                     <input
@@ -913,10 +1060,14 @@ export function AdminPortal({
                       accept="image/*"
                       className="hidden"
                       onChange={e =>
-                        handleFileUpload(e, url => {
+                        handleFileUpload(e, async url => {
+                          const oldUrl = localData.mainCouplePhoto
                           const updated = { ...localData, mainCouplePhoto: url }
                           setLocalData(updated)
                           handleSave(updated)
+                          if (oldUrl && oldUrl !== url && oldUrl.includes('digitaloceanspaces.com')) {
+                            await deletePhotoFromBackend(oldUrl)
+                          }
                         })
                       }
                     />
@@ -1029,18 +1180,23 @@ export function AdminPortal({
                             </span>
                           </div>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
+                              if (!confirm(`¿Eliminar la historia "${story.title}" y su archivo de DigitalOcean Spaces?`)) return
+                              const oldUrl = story.mediaUrl
                               const updated = {
                                 ...localData,
                                 stories: localData.stories.filter((_, idx) => idx !== i),
                               }
                               setLocalData(updated)
                               handleSave(updated)
+                              if (oldUrl && oldUrl.includes('digitaloceanspaces.com')) {
+                                await deletePhotoFromBackend(oldUrl)
+                              }
                             }}
-                            className="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-md"
-                            title="Eliminar historia"
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer shadow-md"
+                            title="Eliminar historia y borrar foto de DigitalOcean Spaces"
                           >
-                            ✕
+                            🗑️
                           </button>
                         </div>
                       ))}
@@ -1334,6 +1490,351 @@ export function AdminPortal({
                 </div>
               )}
 
+              {/* ARTISTAS & GRUPOS MUSICALES TAB */}
+              {activeTab === 'artistas' && (
+                <div className="space-y-6">
+                  {/* FORMULARIO AGREGAR / EDITAR */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100">
+                    <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                      <div>
+                        <h4 className="font-display text-xl font-bold text-stone-800 flex items-center gap-2">
+                          <span>🎤</span>
+                          <span>
+                            {editingArtistIndex !== null
+                              ? `Editando: ${artistName || 'Artista'}`
+                              : 'Registrar Nueva Agrupación o Artista'}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-stone-500 mt-1">
+                          Configura las orquestas, mariachis o DJs que tocarán en la boda. Puedes subir fotos o flyers a DigitalOcean Spaces.
+                        </p>
+                      </div>
+                      {editingArtistIndex !== null && (
+                        <span className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold border border-amber-300 animate-pulse">
+                          Modo Edición Activo (#{editingArtistIndex + 1})
+                        </span>
+                      )}
+                    </div>
+
+                    <form onSubmit={handleSaveArtist} className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Nombre del Artista / Agrupación *
+                          </label>
+                          <input
+                            type="text"
+                            value={artistName}
+                            onChange={e => setArtistName(e.target.value)}
+                            placeholder="Ej: Orquesta Sinfonía del Amor"
+                            className="w-full text-xs p-3 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-stone-50/50"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Género / Estilo Musical
+                          </label>
+                          <input
+                            type="text"
+                            value={artistGenre}
+                            onChange={e => setArtistGenre(e.target.value)}
+                            placeholder="Ej: Valses · Cumbias · Fiesta Bailable"
+                            className="w-full text-xs p-3 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-stone-50/50"
+                          />
+                          <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                            {['Valses & Cumbia', 'Mariachi Romántico', 'DJ & Saxo Live', 'Música Andina'].map(tag => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setArtistGenre(tag)}
+                                className="text-[0.65rem] px-2 py-0.5 rounded-md bg-stone-100 hover:bg-amber-100 text-stone-600 hover:text-amber-800 transition-colors"
+                              >
+                                + {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Horario / Turno de Presentación
+                          </label>
+                          <input
+                            type="text"
+                            value={artistSetTime}
+                            onChange={e => setArtistSetTime(e.target.value)}
+                            placeholder="Ej: 4:00 P.M. - 8:00 P.M."
+                            className="w-full text-xs p-3 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-stone-50/50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">
+                            Instagram / Red Social
+                          </label>
+                          <input
+                            type="text"
+                            value={artistInstagram}
+                            onChange={e => setArtistInstagram(e.target.value)}
+                            placeholder="Ej: @sinfoniadelamor"
+                            className="w-full text-xs p-3 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-stone-50/50"
+                          />
+                        </div>
+                      </div>
+
+                      {/* SUBIDA DE FOTO / FLYER */}
+                      <div className="p-4 bg-gradient-to-r from-amber-50/60 to-purple-50/40 rounded-2xl border border-amber-200/50">
+                        <label className="block text-xs font-bold text-stone-800 mb-2">
+                          Foto o Flyer Oficial (DigitalOcean Spaces CDN)
+                        </label>
+                        <div className="flex flex-col sm:flex-row items-center gap-4">
+                          {/* PREVIEW */}
+                          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-stone-900 border-2 border-amber-400/40 flex-shrink-0 flex items-center justify-center relative shadow-md">
+                            {artistPhoto ? (
+                              <SafeImage
+                                src={artistPhoto}
+                                alt={artistName || 'Artista'}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="text-center p-2">
+                                <span className="text-3xl block">🎺</span>
+                                <span className="text-[0.6rem] text-stone-400 mt-1 block">Sin Foto</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* CONTROLES */}
+                          <div className="flex-1 w-full space-y-2">
+                            <input
+                              type="file"
+                              ref={artistFileRef}
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                handleFileUpload(e, url => setArtistPhoto(url))
+                              }}
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => artistFileRef.current?.click()}
+                                className="px-4 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+                              >
+                                <span>☁️</span>
+                                <span>Subir Foto a DigitalOcean Spaces</span>
+                              </button>
+
+                              {artistPhoto && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (window.confirm('¿Deseas quitar esta foto y eliminarla del servidor en DigitalOcean Spaces?')) {
+                                      await deletePhotoFromBackend(artistPhoto).catch(console.error)
+                                      setArtistPhoto('')
+                                    }
+                                  }}
+                                  className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-200 transition-colors flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span>🗑️</span>
+                                  <span>Quitar Foto de Spaces</span>
+                                </button>
+                              )}
+                            </div>
+
+                            <div>
+                              <input
+                                type="text"
+                                value={artistPhoto}
+                                onChange={e => setArtistPhoto(e.target.value)}
+                                placeholder="O pega directamente la URL de la imagen..."
+                                className="w-full text-[0.75rem] p-2.5 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">
+                          Descripción / Detalle de la Presentación
+                        </label>
+                        <textarea
+                          value={artistDescription}
+                          onChange={e => setArtistDescription(e.target.value)}
+                          placeholder="Breve semblanza o temas que interpretarán para animar la fiesta..."
+                          rows={3}
+                          className="w-full text-xs p-3 rounded-xl border border-stone-200 focus:outline-none focus:border-amber-400 bg-stone-50/50"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="submit"
+                          disabled={isSaving}
+                          className="btn-gold text-xs py-2.5 px-6 font-bold cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <span>{editingArtistIndex !== null ? '💾' : '➕'}</span>
+                          <span>
+                            {editingArtistIndex !== null
+                              ? 'Actualizar Artista en MySQL'
+                              : 'Guardar Artista en MySQL'}
+                          </span>
+                        </button>
+
+                        {editingArtistIndex !== null && (
+                          <button
+                            type="button"
+                            onClick={handleCancelArtistEdit}
+                            className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold rounded-full transition-colors cursor-pointer"
+                          >
+                            Cancelar Edición
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* LISTA DE ARTISTAS REGISTRADOS */}
+                  <div className="bg-white p-6 rounded-3xl shadow-sm border border-pink-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h4 className="font-display text-xl font-bold text-stone-800">
+                          Artistas y Grupos en Cartelera
+                        </h4>
+                        <p className="text-xs text-stone-500">
+                          Total de agrupaciones configuradas: {(localData.artists || []).length}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(!localData.artists || localData.artists.length === 0) ? (
+                      <div className="text-center py-10 border-2 border-dashed border-stone-200 rounded-3xl p-6">
+                        <span className="text-4xl block mb-2">🎺</span>
+                        <h5 className="font-display text-base font-bold text-stone-700">
+                          No hay artistas registrados aún
+                        </h5>
+                        <p className="text-xs text-stone-500 max-w-md mx-auto mt-1 mb-4">
+                          Utiliza el formulario superior para registrar orquestas, mariachis o grupos en vivo.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {localData.artists.map((artist, idx) => (
+                          <div
+                            key={idx}
+                            className={`rounded-2xl border transition-all duration-300 overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md ${
+                              editingArtistIndex === idx
+                                ? 'border-amber-400 bg-amber-50/30 ring-2 ring-amber-300'
+                                : 'border-stone-200 bg-white hover:border-amber-300'
+                            }`}
+                          >
+                            <div>
+                              {/* CABECERA CON FOTO Y BADGES */}
+                              <div className="relative h-40 bg-stone-900 overflow-hidden flex items-center justify-center">
+                                {artist.photo ? (
+                                  <SafeImage
+                                    src={artist.photo}
+                                    alt={artist.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-center p-3">
+                                    <span className="text-4xl mb-1">
+                                      {['🎺', '🎸', '🎷', '🎤', '🎻'][idx % 5]}
+                                    </span>
+                                    <span className="text-[0.65rem] text-stone-400 font-bold uppercase tracking-wider">
+                                      {artist.genre || 'Música en Vivo'}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {artist.setTime && (
+                                  <span className="absolute top-2 right-2 text-[0.65rem] font-bold bg-black/80 backdrop-blur-md text-amber-300 px-2.5 py-1 rounded-full border border-amber-400/40">
+                                    ⏰ {artist.setTime}
+                                  </span>
+                                )}
+
+                                <span className="absolute top-2 left-2 text-[0.65rem] font-extrabold bg-stone-900/80 text-white px-2 py-0.5 rounded-md">
+                                  #{idx + 1}
+                                </span>
+                              </div>
+
+                              {/* CONTENIDO */}
+                              <div className="p-4 space-y-2">
+                                <h5 className="font-display text-base font-bold text-stone-900 line-clamp-1">
+                                  {artist.name}
+                                </h5>
+
+                                <p className="text-[0.7rem] font-semibold text-purple-700 uppercase tracking-wider">
+                                  {artist.genre || 'En Vivo'}
+                                </p>
+
+                                <p className="text-xs text-stone-600 line-clamp-3 leading-relaxed">
+                                  {artist.description || 'Sin descripción detallada.'}
+                                </p>
+
+                                {artist.instagramHandle && (
+                                  <p className="text-[0.7rem] text-amber-700 font-bold flex items-center gap-1 pt-1">
+                                    <span>📸</span>
+                                    <span>{artist.instagramHandle}</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* BARRA DE ACCIONES */}
+                            <div className="p-3 bg-stone-50 border-t border-stone-100 flex items-center justify-between gap-1">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  title="Subir posición"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveArtist(idx, 'up')}
+                                  className="w-7 h-7 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 disabled:opacity-30 flex items-center justify-center text-xs cursor-pointer"
+                                >
+                                  ▲
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Bajar posición"
+                                  disabled={idx === localData.artists.length - 1}
+                                  onClick={() => handleMoveArtist(idx, 'down')}
+                                  className="w-7 h-7 rounded-lg bg-white border border-stone-200 text-stone-600 hover:bg-stone-100 disabled:opacity-30 flex items-center justify-center text-xs cursor-pointer"
+                                >
+                                  ▼
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditArtist(idx)}
+                                  className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteArtist(idx)}
+                                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* GALERÍA & COLLAGE TAB */}
               {activeTab === 'galeria' && (
                 <div className="space-y-6">
@@ -1445,17 +1946,23 @@ export function AdminPortal({
                               {photo.category}
                             </span>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
+                                if (!confirm('¿Eliminar permanentemente esta fotografía de DigitalOcean Spaces para liberar espacio?')) return
+                                const oldUrl = photo.url
                                 const updated = {
                                   ...localData,
                                   galleryPhotos: localData.galleryPhotos.filter((_, idx) => idx !== i),
                                 }
                                 setLocalData(updated)
                                 handleSave(updated)
+                                if (oldUrl && oldUrl.includes('digitaloceanspaces.com')) {
+                                  await deletePhotoFromBackend(oldUrl)
+                                }
                               }}
-                              className="mt-2 px-2.5 py-1 rounded-full bg-red-600 text-white text-[0.65rem] font-bold"
+                              className="mt-2 px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-white text-[0.65rem] font-bold cursor-pointer shadow-md transition flex items-center gap-1"
                             >
-                              Eliminar
+                              <span>🗑️</span>
+                              <span>Eliminar de Spaces</span>
                             </button>
                           </div>
                         </div>
@@ -1486,11 +1993,10 @@ export function AdminPortal({
                     {localData.guestbook.map(msg => (
                       <div
                         key={msg.id}
-                        className={`p-4 rounded-2xl border flex items-start justify-between gap-4 ${
-                          msg.isPinned
-                            ? 'bg-amber-50/50 border-amber-200'
-                            : 'bg-stone-50 border-stone-200'
-                        }`}
+                        className={`p-4 rounded-2xl border flex items-start justify-between gap-4 ${msg.isPinned
+                          ? 'bg-amber-50/50 border-amber-200'
+                          : 'bg-stone-50 border-stone-200'
+                          }`}
                       >
                         <div className="flex items-start gap-3">
                           <span className="text-2xl">{msg.emoji}</span>
@@ -2133,11 +2639,10 @@ export function AdminPortal({
                                 musicUrl: song.url,
                               })
                             }}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                              localData.musicUrl === song.url
-                                ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                                : 'bg-white hover:bg-purple-50 text-stone-700 border-stone-200'
-                            }`}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${localData.musicUrl === song.url
+                              ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                              : 'bg-white hover:bg-purple-50 text-stone-700 border-stone-200'
+                              }`}
                           >
                             🎵 {song.title} · <span className="opacity-75">{song.artist}</span>
                           </button>
