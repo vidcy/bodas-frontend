@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { GalleryPhoto } from '../types/wedding'
+import { SafeImage } from './SafeImage'
+import fallbackGalleryImg from '../assets/gallery1.jpg'
 
 interface GalleryCollageProps {
   photos: GalleryPhoto[]
@@ -247,9 +249,10 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
                 />
 
                 {/* IMAGEN PRINCIPAL FOCALIZADA */}
-                <img
+                <SafeImage
                   key={filteredPhotos[currentIndex]?.url}
                   src={filteredPhotos[currentIndex]?.url}
+                  fallbackSrc={fallbackGalleryImg}
                   alt={filteredPhotos[currentIndex]?.caption || 'Recuerdo de la boda'}
                   style={{
                     objectPosition: filteredPhotos[currentIndex]?.objectPosition || 'center center',
@@ -359,8 +362,9 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
                           : 'border-white/15 opacity-60 hover:opacity-100 hover:scale-100'
                       }`}
                     >
-                      <img
+                      <SafeImage
                         src={photo.url}
+                        fallbackSrc={fallbackGalleryImg}
                         alt={`Ventanita ${idx + 1}`}
                         style={{ objectPosition: photo.objectPosition || 'center center' }}
                         className="w-full h-full object-cover"
@@ -396,8 +400,9 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
                     className="absolute inset-0 bg-cover bg-center blur-xl opacity-30 scale-110"
                     style={{ backgroundImage: `url(${photo.url})` }}
                   />
-                  <img
+                  <SafeImage
                     src={photo.url}
+                    fallbackSrc={fallbackGalleryImg}
                     alt={photo.caption || `Foto ${idx + 1}`}
                     style={{ objectPosition: photo.objectPosition || 'center center' }}
                     className="relative z-10 w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
@@ -481,8 +486,9 @@ export function GalleryCollage({ photos }: GalleryCollageProps) {
             className="relative max-w-5xl max-h-[85vh] flex flex-col items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <img
+            <SafeImage
               src={lightboxPhoto.url}
+              fallbackSrc={fallbackGalleryImg}
               alt={lightboxPhoto.caption || 'Foto de boda'}
               style={{ objectPosition: lightboxPhoto.objectPosition || 'center center' }}
               className="max-w-full max-h-[75vh] object-contain rounded-2xl shadow-2xl border border-white/20"

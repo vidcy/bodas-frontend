@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { InteractiveStory } from '../types/wedding'
+import { SafeImage } from './SafeImage'
 
 interface StoriesBarProps {
   stories: InteractiveStory[]
@@ -115,7 +116,7 @@ export function StoriesBar({ stories }: StoriesBarProps) {
             {/* GRADIENT GLOW RING */}
             <div className="relative p-[3px] rounded-full bg-gradient-to-tr from-amber-400 via-pink-400 to-purple-500 shadow-md group-hover:shadow-pink-300/50 group-hover:scale-105 transition-all duration-300">
               <div className="p-[2px] rounded-full bg-white">
-                <img
+                <SafeImage
                   src={story.mediaUrl}
                   alt={story.title}
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover group-hover:rotate-2 transition-transform duration-300"
@@ -165,7 +166,7 @@ export function StoriesBar({ stories }: StoriesBarProps) {
             {/* HEADER WITH COUPLE INFO & CLOSE */}
             <div className="absolute top-6 left-0 right-0 z-40 flex items-center justify-between px-4 py-2">
               <div className="flex items-center gap-3">
-                <img
+                <SafeImage
                   src={activeStory.mediaUrl}
                   alt=""
                   className="w-9 h-9 rounded-full object-cover border-2 border-pink-400 shadow-sm"
@@ -193,7 +194,7 @@ export function StoriesBar({ stories }: StoriesBarProps) {
 
             {/* MAIN STORY MEDIA */}
             <div className="relative flex-1 w-full h-full overflow-hidden flex items-center justify-center bg-black">
-              <img
+              <SafeImage
                 src={activeStory.mediaUrl}
                 alt={activeStory.title}
                 className="w-full h-full object-cover"

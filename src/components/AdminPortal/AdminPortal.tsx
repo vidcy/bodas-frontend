@@ -14,9 +14,11 @@ import {
   saveCloudConfig,
   uploadPhotoToBackend,
   saveStoredWeddingData,
-  DEFAULT_BACKEND_API,
+  getBackendApiUrl,
+  setCustomBackendApiUrl,
   type CloudConfig
 } from '../../utils/storageService'
+import { SafeImage } from '../SafeImage'
 
 interface AdminPortalProps {
   open: boolean
@@ -94,17 +96,66 @@ export function AdminPortal({
   const [newGuestCount, setNewGuestCount] = useState(1)
   const [newGuestPhone, setNewGuestPhone] = useState('')
 
+  // Backend connection state
+  const [customBackendUrl, setCustomBackendUrl] = useState(() => getBackendApiUrl())
+  const [showServerConfig, setShowServerConfig] = useState(false)
+  const [backendHealthStatus, setBackendHealthStatus] = useState<{
+    tested: boolean
+    ok: boolean
+    message: string
+    details?: any
+  }>({ tested: false, ok: false, message: '' })
+
+  const handleTestBackendConnection = async (targetUrl?: string) => {
+    const urlToTest = (targetUrl || customBackendUrl).trim().replace(/\/+$/, '')
+    setBackendHealthStatus({ tested: true, ok: false, message: 'Probando conexión...' })
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 4000)
+      const res = await fetch(`${urlToTest}/wedding/health`, { signal: controller.signal })
+      clearTimeout(timeout)
+      if (res.ok) {
+        const json = await res.json()
+        setBackendHealthStatus({
+          tested: true,
+          ok: true,
+          message: '¡Conexión Exitosa con MySQL y DigitalOcean Spaces!',
+          details: json
+        })
+      } else {
+        setBackendHealthStatus({
+          tested: true,
+          ok: false,
+          message: `El servidor respondió con código HTTP ${res.status}`
+        })
+      }
+    } catch (e: any) {
+      setBackendHealthStatus({
+        tested: true,
+        ok: false,
+        message: `No se pudo conectar: ${e.message || 'Servidor no alcanzable'}`
+      })
+    }
+  }
+
+  const handleSaveBackendUrl = (url: string) => {
+    setCustomBackendApiUrl(url)
+    setCustomBackendUrl(getBackendApiUrl())
+    handleTestBackendConnection(url)
+  }
+
   if (!open) return null
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoggingIn(true)
     setAuthError('')
+    const activeApi = getBackendApiUrl()
     try {
       let res: Response | null = null
-      // 1. Intentar a través de DEFAULT_BACKEND_API
+      // 1. Intentar a través de la URL activa del Backend
       try {
-        res = await fetch(`${DEFAULT_BACKEND_API}/wedding/auth/login`, {
+        res = await fetch(`${activeApi}/wedding/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user: user.trim(), pass: pass.trim() }),
@@ -135,10 +186,12 @@ export function AdminPortal({
         const json = await res.json().catch(() => null)
         setAuthError(json?.message || json?.error || 'Usuario o contraseña incorrectos. Intenta con admin / bodas2026')
       } else {
-        setAuthError('No se pudo establecer conexión con el backend NestJS (http://localhost:3000).')
+        setAuthError(`No se pudo conectar con el servidor backend (${activeApi}). Verifica que esté corriendo en Railway o localmente.`)
+        setShowServerConfig(true)
       }
     } catch {
-      setAuthError('Error inesperado al conectar con el servidor backend.')
+      setAuthError(`Error de red al conectar con: ${activeApi}`)
+      setShowServerConfig(true)
     } finally {
       setIsLoggingIn(false)
       setPass('')
@@ -384,8 +437,60 @@ export function AdminPortal({
               {isLoggingIn ? 'Validando con el backend...' : 'Ingresar al Portal'}
             </button>
 
-            <p className="text-[0.68rem] text-stone-400 text-center mt-2">
-              Validado directamente en la base de datos MySQL (Backend NestJS)
+            <div className="pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setShowServerConfig(!showServerConfig)}
+                className="text-xs text-stone-500 hover:text-stone-800 flex items-center justify-center gap-1.5 w-full py-1 cursor-pointer transition-colors"
+              >
+                <span>⚙️</span>
+                <span>{showServerConfig ? 'Ocultar ajustes de servidor' : 'Configurar URL de Railway / Backend'}</span>
+              </button>
+
+              {showServerConfig && (
+                <div className="mt-3 p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-left space-y-2 animate-fade-in">
+                  <label className="block text-[11px] font-bold text-stone-700">
+                    URL API del Backend (NestJS / Railway)
+                  </label>
+                  <input
+                    type="url"
+                    value={customBackendUrl}
+                    onChange={(e) => setCustomBackendUrl(e.target.value)}
+                    placeholder="https://tu-backend.up.railway.app/api"
+                    className="w-full text-xs px-3 py-2 rounded-xl bg-white border border-stone-300 focus:outline-none focus:ring-2 focus:ring-purple-400"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSaveBackendUrl(customBackendUrl)}
+                      className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold transition cursor-pointer"
+                    >
+                      Guardar URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTestBackendConnection()}
+                      className="px-3 py-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 text-[11px] font-semibold transition cursor-pointer"
+                    >
+                      Probar Salud
+                    </button>
+                  </div>
+                  {backendHealthStatus.tested && (
+                    <div className={`p-2 rounded-lg text-[11px] font-medium ${backendHealthStatus.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+                      {backendHealthStatus.message}
+                      {backendHealthStatus.details?.cloudStorage && (
+                        <div className="mt-1 text-[10px] text-stone-600">
+                          📦 {backendHealthStatus.details.cloudStorage.provider} (Bucket: {backendHealthStatus.details.cloudStorage.bucket})
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <p className="text-[0.68rem] text-stone-400 text-center mt-1">
+              Conectado a: <code className="bg-stone-100 px-1 py-0.5 rounded text-[10px] text-stone-600">{getBackendApiUrl()}</code>
             </p>
           </form>
         </div>
@@ -673,7 +778,7 @@ export function AdminPortal({
 
                     {localData.heroBannerUrl && (
                       <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200">
-                        <img
+                        <SafeImage
                           src={localData.heroBannerUrl}
                           alt="Hero Banner"
                           style={{ objectPosition: localData.heroPhotoPosition || 'center 30%' }}
@@ -757,7 +862,7 @@ export function AdminPortal({
 
                     {localData.mainCouplePhoto && (
                       <div className="relative rounded-2xl overflow-hidden h-44 mb-4 border border-stone-200">
-                        <img
+                        <SafeImage
                           src={localData.mainCouplePhoto}
                           alt="Couple"
                           style={{ objectPosition: localData.couplePhotoPosition || 'center 20%' }}
@@ -910,7 +1015,7 @@ export function AdminPortal({
                           key={story.id || i}
                           className="relative rounded-2xl overflow-hidden border border-stone-200 group bg-stone-900"
                         >
-                          <img
+                          <SafeImage
                             src={story.mediaUrl}
                             alt=""
                             className="w-full h-36 object-cover opacity-90 group-hover:opacity-100"
@@ -1330,7 +1435,7 @@ export function AdminPortal({
                           key={photo.id || i}
                           className="relative group rounded-2xl overflow-hidden border border-stone-200"
                         >
-                          <img
+                          <SafeImage
                             src={photo.url}
                             alt=""
                             className="w-full h-28 object-cover"

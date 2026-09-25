@@ -14,10 +14,9 @@ export const DEFAULT_WEDDING: WeddingData = {
   brideFullName: "Victoria Choque Baez",
   hashtag: "#LuisYVictoria",
   tagline: "Unidos por el amor, bendecidos por Dios y nuestra hermosa familia",
-  heroSubtitle: "¡Nos casamos! Matrimonio Religioso y Civil",
-  heroBannerUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790191222462-xnxds7.jpeg",
+  heroBannerUrl: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-20260912-093647-jpg-1-1790354722818-52jbkd.jpeg",
   heroPhotoPosition: "center 30%",
-  mainCouplePhoto: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790191251660-limbw3.jpeg",
+  mainCouplePhoto: "https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas/boda-whatsapp-image-2026-09-21-at-4-1790213472408-klgyh0.jpeg",
   couplePhotoPosition: "center 20%",
 
   spiritualBlessing: "Con la bendición de Dios y de nuestros padres. Queremos que estés presente en este día donde complementaremos nuestro amor con un Sí para toda la vida.",
@@ -301,12 +300,27 @@ import { getStoredWeddingData, saveStoredWeddingData, sanitizeWeddingData } from
 
 const CACHE_KEY = 'wedding_data_cached_v1'
 
+function isStaleUrl(url?: string | null): boolean {
+  if (!url) return true
+  return url.includes('xnxds7') || url.includes('limbw3')
+}
+
 export function mergeWithDefaults(parsed: Partial<WeddingData>): WeddingData {
+  const heroBannerUrl =
+    parsed.heroBannerUrl && !isStaleUrl(parsed.heroBannerUrl)
+      ? parsed.heroBannerUrl
+      : DEFAULT_WEDDING.heroBannerUrl
+
+  const mainCouplePhoto =
+    parsed.mainCouplePhoto && !isStaleUrl(parsed.mainCouplePhoto)
+      ? parsed.mainCouplePhoto
+      : DEFAULT_WEDDING.mainCouplePhoto
+
   const merged: WeddingData = {
     ...DEFAULT_WEDDING,
     ...parsed,
-    heroBannerUrl: parsed.heroBannerUrl || DEFAULT_WEDDING.heroBannerUrl,
-    mainCouplePhoto: parsed.mainCouplePhoto || DEFAULT_WEDDING.mainCouplePhoto,
+    heroBannerUrl,
+    mainCouplePhoto,
     youtubeVideoId: parsed.youtubeVideoId || DEFAULT_WEDDING.youtubeVideoId,
     videoTitle: parsed.videoTitle || DEFAULT_WEDDING.videoTitle,
     loveStory: parsed.loveStory?.length ? parsed.loveStory : DEFAULT_WEDDING.loveStory,

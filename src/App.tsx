@@ -25,6 +25,8 @@ import { BackendStatusBadge } from './components/BackendStatusBadge'
 import { DidacticScheduleSection } from './components/DidacticScheduleSection'
 import { WeddingLiveChat } from './components/WeddingLiveChat'
 import { getGoogleCalendarUrl, downloadIcsCalendar } from './utils/calendarHelper'
+import { SafeImage } from './components/SafeImage'
+import coupleImg from './assets/couple.jpg'
 import { likeGuestbookMessageInBackend, deleteGuestbookMessageFromBackend, submitGuestbookMessageToBackend } from './utils/storageService'
 
 // ── WEDDING DATA CONTEXT ─────────────────────────────────────
@@ -213,8 +215,9 @@ function HeroSection() {
 
               {/* IMAGE CONTAINER WITH FOCAL POINT CENTERING */}
               <div className="relative h-[440px] sm:h-[500px] w-full rounded-[28px] overflow-hidden bg-black/40">
-                <img
+                <SafeImage
                   src={data.mainCouplePhoto}
+                  fallbackSrc={coupleImg}
                   alt={`${data.groomName} y ${data.brideName}`}
                   style={{ objectPosition: data.couplePhotoPosition || 'center 20%' }}
                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"

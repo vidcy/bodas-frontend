@@ -6,34 +6,103 @@ const DATA_KEY = 'wedding_data_active'
 const LOCAL_STORAGE_KEY = 'wedding_data_luis_victoria_v3'
 const CLOUD_CONFIG_KEY = 'wedding_cloud_config'
 
-// URL base del backend de NestJS (configurable mediante .env de Vite)
-export const DEFAULT_BACKEND_API =
-  (import.meta as any).env?.VITE_API_URL ||
-  (typeof window !== 'undefined' &&
-  window.location.hostname !== 'localhost' &&
-  window.location.hostname !== '127.0.0.1'
-    ? `${window.location.origin}/api`
-    : 'http://localhost:3000/api')
+// Key para guardar URL personalizada del backend en localStorage (configurable desde el Admin)
+export const CUSTOM_API_URL_KEY = 'wedding_custom_api_url'
+
+/**
+ * Obtiene dinámicamente la URL base de la API del Backend (NestJS).
+ * Prioridad:
+ * 1. URL personalizada guardada en localStorage (desde el AdminPortal)
+ * 2. Variable de entorno VITE_API_URL (inyectada en Vercel o .env)
+ * 3. En entorno local (localhost): http://localhost:3000/api
+ * 4. En producción (Vercel / dominio externo): fallback a /api del origin
+ */
+export function getBackendApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem(CUSTOM_API_URL_KEY)?.trim()
+    if (custom) {
+      return custom.replace(/\/+$/, '')
+    }
+  }
+
+  const envUrl = (import.meta as any).env?.VITE_API_URL?.trim()
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '')
+  }
+
+  if (typeof window !== 'undefined') {
+    const isLocal =
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.')
+    if (isLocal) {
+      return 'http://localhost:3000/api'
+    }
+    return `${window.location.origin}/api`
+  }
+
+  return 'http://localhost:3000/api'
+}
+
+export function setCustomBackendApiUrl(url: string): void {
+  if (typeof window === 'undefined') return
+  const clean = url.trim().replace(/\/+$/, '')
+  if (clean) {
+    localStorage.setItem(CUSTOM_API_URL_KEY, clean)
+  } else {
+    localStorage.removeItem(CUSTOM_API_URL_KEY)
+  }
+}
+
+// Mantener compatibilidad retroactiva
+export const DEFAULT_BACKEND_API = getBackendApiUrl()
 
 export const DO_SPACES_CDN_BASE =
   'https://controlfinanzas.nyc3.cdn.digitaloceanspaces.com/bodas'
 
+export const DO_SPACES_ORIGIN_BASE =
+  'https://controlfinanzas.nyc3.digitaloceanspaces.com/bodas'
+
 /**
- * Transforma URLs locales o inseguras (como http://localhost:3000/uploads/...)
- * a la CDN pública y segura con HTTPS de DigitalOcean Spaces.
+ * Transforma URLs locales o inseguras a la CDN pública y segura con HTTPS de DigitalOcean Spaces.
+ * También asegura que ninguna imagen en producción intente cargarse por HTTP inseguro.
  */
 export function sanitizeMediaUrl(url?: string | null): string {
   if (!url) return ''
-  if (typeof url !== 'string') return url
+  if (typeof url !== 'string') return ''
+
+  let clean = url.trim()
+
+  // Forzar siempre HTTPS en DigitalOcean Spaces y Cloudinary/CDN
+  if (clean.startsWith('http://') && clean.includes('digitaloceanspaces.com')) {
+    clean = clean.replace('http://', 'https://')
+  }
 
   // Si la URL apunta a localhost:3000/uploads o a /uploads/boda-
-  if (url.includes('localhost:3000/uploads/') || url.includes('/uploads/boda-')) {
-    const filename = url.split('/uploads/').pop()
+  if (clean.includes('localhost:3000/uploads/') || clean.includes('/uploads/boda-')) {
+    const filename = clean.split('/uploads/').pop()
     if (filename) {
       return `${DO_SPACES_CDN_BASE}/${filename}`
     }
   }
 
+  // Si es una ruta relativa que comienza con /uploads/
+  if (clean.startsWith('/uploads/')) {
+    const filename = clean.replace(/^\/uploads\//, '')
+    return `${DO_SPACES_CDN_BASE}/${filename}`
+  }
+
+  return clean
+}
+
+/**
+ * Obtiene la URL alternativa de DigitalOcean Spaces (sin CDN) por si la CDN falla
+ */
+export function getDirectSpacesUrl(url: string): string {
+  if (!url || typeof url !== 'string') return url
+  if (url.includes('.cdn.digitaloceanspaces.com')) {
+    return url.replace('.cdn.digitaloceanspaces.com', '.digitaloceanspaces.com')
+  }
   return url
 }
 
@@ -109,7 +178,7 @@ export function getCloudConfig(): CloudConfig {
   } catch {
     // fallback
   }
-  return { enabled: true, endpointUrl: `${DEFAULT_BACKEND_API}/wedding`, apiKey: '' }
+  return { enabled: true, endpointUrl: `${getBackendApiUrl()}/wedding`, apiKey: '' }
 }
 
 /**
@@ -131,7 +200,7 @@ export async function checkBackendHealth(): Promise<{ ok: boolean; message: stri
   try {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 3000)
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/health`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/health`, {
       signal: controller.signal,
     })
     clearTimeout(timeoutId)
@@ -159,7 +228,7 @@ export async function submitRsvpToBackend(rsvp: {
   notes?: string
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/rsvp`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/rsvp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rsvp),
@@ -184,7 +253,7 @@ export async function submitGuestbookMessageToBackend(msg: {
   emoji?: string
 }): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/guestbook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msg),
@@ -204,7 +273,7 @@ export async function submitGuestbookMessageToBackend(msg: {
  */
 export async function likeGuestbookMessageInBackend(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook/${encodeURIComponent(id)}/like`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/guestbook/${encodeURIComponent(id)}/like`, {
       method: 'POST',
     })
     return res.ok
@@ -218,7 +287,7 @@ export async function likeGuestbookMessageInBackend(id: string): Promise<boolean
  */
 export async function deleteGuestbookMessageFromBackend(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/guestbook/${encodeURIComponent(id)}`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/guestbook/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     })
     return res.ok
@@ -232,7 +301,7 @@ export async function deleteGuestbookMessageFromBackend(id: string): Promise<boo
  */
 export async function deleteRsvpFromBackend(id: string): Promise<boolean> {
   try {
-    const res = await fetch(`${DEFAULT_BACKEND_API}/wedding/rsvp/${encodeURIComponent(id)}`, {
+    const res = await fetch(`${getBackendApiUrl()}/wedding/rsvp/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     })
     return res.ok
@@ -245,7 +314,7 @@ export async function deleteRsvpFromBackend(id: string): Promise<boolean> {
  * Obtiene los datos de la boda directamente desde el Backend NestJS + MySQL
  */
 export async function getStoredWeddingData(): Promise<WeddingData | null> {
-  const targetUrl = `${DEFAULT_BACKEND_API}/wedding`
+  const targetUrl = `${getBackendApiUrl()}/wedding`
 
   try {
     const res = await fetch(targetUrl)
@@ -327,7 +396,7 @@ export async function uploadPhotoToBackend(file: File | Blob, filename?: string)
     formData.append('file', file, filename || (file as File).name || 'foto.webp')
 
     // 1. Intentar DEFAULT_BACKEND_API/upload
-    let res: Response | null = await fetch(`${DEFAULT_BACKEND_API}/upload`, {
+    let res: Response | null = await fetch(`${getBackendApiUrl()}/upload`, {
       method: 'POST',
       body: formData,
     }).catch(() => null)
@@ -363,7 +432,7 @@ export async function saveStoredWeddingData(data: WeddingData): Promise<{ succes
 
   try {
     // 1. Intentar a través de DEFAULT_BACKEND_API/wedding
-    let res: Response | null = await fetch(`${DEFAULT_BACKEND_API}/wedding`, {
+    let res: Response | null = await fetch(`${getBackendApiUrl()}/wedding`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
